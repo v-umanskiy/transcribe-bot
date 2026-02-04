@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Builds / artifacts
+build/
+deploy.zip
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local config
+.env
