@@ -54,7 +54,7 @@ if [[ -s "$REQ_FILE" ]]; then
 fi
 
 echo "==> Copying source files"
-cp -r *.py services repository "$BUILD_DIR"/
+cp -r *.py services repository utils "$BUILD_DIR"/
 
 echo "==> Creating deployment zip"
 (

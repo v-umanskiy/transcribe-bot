@@ -6,6 +6,7 @@ from . import s3_service
 from . import telegram_service
 from . import transcription_table_service
 from . import transcription_aws_service
+from . import gemini_service
 
 
 async def handle_telegram_webhook_data(data: dict) -> dict:
@@ -102,7 +103,10 @@ async def _handle_transcription_data(event: dict) -> dict:
     if not reply:
         return {"status": "empty_transcript"}
 
-    await _send_long_message(int(chat_id), reply)
+    refined = await gemini_service.refine_text(reply)
+    refined = refined.strip() or reply
+
+    await _send_long_message(int(chat_id), refined)
 
     return {"status": "ok"}
 
