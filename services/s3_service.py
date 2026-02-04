@@ -30,3 +30,19 @@ async def upload_file_to_s3(file_bytes: bytes, file_id: str) -> tuple[str | None
     except Exception as exc:
         print(f"S3 upload error: {repr(exc)}")
         return None, None
+
+
+async def download_file_from_s3(key: str) -> bytes | None:
+    if not S3_BUCKET_NAME:
+        print("S3_BUCKET_NAME not set. Cannot download file.")
+        return None
+
+    try:
+        def _download():
+            response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=key)
+            return response["Body"].read()
+
+        return await asyncio.to_thread(_download)
+    except Exception as exc:
+        print(f"S3 download error: {repr(exc)}")
+        return None

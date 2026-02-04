@@ -12,3 +12,15 @@ async def save_transcription_job(chat_id: int, job_id: str, file_url: str, file_
         "status": "pending",
     }
     return await transcription_repository.put_job(item)
+
+
+async def get_by_job_id(job_id: str) -> dict | None:
+    try:
+        item = await transcription_repository.get_job_by_id(job_id)
+        if not item:
+            print(f"No transcription found for job_id={job_id}")
+            return None
+        return item
+    except Exception as exc:
+        print(f"Error getting transcription {job_id}: {exc}")
+        return None

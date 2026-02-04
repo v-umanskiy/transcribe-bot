@@ -27,3 +27,9 @@ async def telegram_webhook(
     print("Incoming update:", data)
 
     return await webhook_service.handle_telegram_webhook_data(data)
+
+
+@app.post("/transcript/event")
+async def transcript_event(request: Request):
+    event = await request.json()
+    return await webhook_service.handle_transcription_data(event)

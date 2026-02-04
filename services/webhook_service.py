@@ -1,4 +1,6 @@
+import json
 import uuid
+from urllib.parse import unquote_plus
 
 from . import s3_service
 from . import telegram_service
@@ -52,3 +54,47 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
     transcription_aws_service.transcribe(job_id, file_key)
 
     return {"ok": True}
+
+
+async def handle_transcription_data(event: dict) -> dict:
+    try:
+        return await _handle_transcription_data(event)
+    except Exception as exc:
+        print("Unhandled error while processing transcription event:", exc)
+        return {"ok": True}
+
+
+async def _handle_transcription_data(event: dict) -> dict:
+    obj_key = unquote_plus(event["detail"]["object"]["key"])
+
+    file_bytes = await s3_service.download_file_from_s3(obj_key)
+    if file_bytes is None:
+        return {"status": "download_failed"}
+
+    try:
+        transcript_json = json.loads(file_bytes)
+    except json.JSONDecodeError:
+        return {"status": "invalid_json"}
+
+    job_id = transcript_json.get("jobName")
+    if not job_id:
+        return {"status": "missing_job_name"}
+
+    transcription_job = await transcription_table_service.get_by_job_id(job_id)
+    if not transcription_job:
+        return {"status": "missing_transcription_job"}
+
+    chat_id = transcription_job.get("chat_id")
+    if not chat_id:
+        return {"status": "missing_chat_id"}
+
+    payload = json.dumps(transcript_json, ensure_ascii=False)
+    await _send_long_message(int(chat_id), payload)
+
+    return {"status": "ok"}
+
+
+async def _send_long_message(chat_id: int, text: str):
+    chunk_size = 3500
+    for start in range(0, len(text), chunk_size):
+        await telegram_service.send_message(chat_id, text[start:start + chunk_size])
