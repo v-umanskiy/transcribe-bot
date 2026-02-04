@@ -84,12 +84,25 @@ async def _handle_transcription_data(event: dict) -> dict:
     if not transcription_job:
         return {"status": "missing_transcription_job"}
 
+    if transcription_job.get("status") != "pending":
+        return {"status": "already_processed"}
+
     chat_id = transcription_job.get("chat_id")
     if not chat_id:
         return {"status": "missing_chat_id"}
 
-    payload = json.dumps(transcript_json, ensure_ascii=False)
-    await _send_long_message(int(chat_id), payload)
+    transcripts = transcript_json.get("results", {}).get("transcripts", [])
+    if not transcripts:
+        return {"status": "empty_transcript"}
+
+    if not transcription_table_service.mark_job_done(job_id):
+        return {"status": "already_processed"}
+
+    reply = transcripts[0].get("transcript")
+    if not reply:
+        return {"status": "empty_transcript"}
+
+    await _send_long_message(int(chat_id), reply)
 
     return {"status": "ok"}
 

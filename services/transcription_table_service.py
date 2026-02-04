@@ -24,3 +24,11 @@ async def get_by_job_id(job_id: str) -> dict | None:
     except Exception as exc:
         print(f"Error getting transcription {job_id}: {exc}")
         return None
+
+
+def mark_job_done(job_id: str) -> bool:
+    try:
+        return transcription_repository.update_status_if_pending(job_id, "done")
+    except Exception as exc:
+        print(f"Failed to mark job {job_id} as done: {exc}")
+        return False
