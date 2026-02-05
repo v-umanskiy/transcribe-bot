@@ -7,6 +7,7 @@ from . import telegram_service
 from . import transcription_aws_service
 from . import chunks_table_service
 from . import transcription_table_service
+from . import sqs_service
 from utils import text_utils
 
 
@@ -109,5 +110,5 @@ async def _handle_transcription_data(event: dict) -> dict:
         await chunks_table_service.save_chunk(job_id, idx, total_chunks, chunk, str(chat_id))
 
     transcription_table_service.mark_job_done(job_id)
+    sqs_service.send_chunk(job_id, 1)
     return {"status": "ok"}
-

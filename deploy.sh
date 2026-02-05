@@ -5,8 +5,9 @@ set -euo pipefail
 #   ./deploy.sh prod
 
 ENVIRONMENT="${1:-}"
+TARGET="${2:-}"
 if [[ -z "$ENVIRONMENT" ]]; then
-  echo "Usage: $0 {prod}"
+  echo "Usage: $0 {prod} [worker]"
   exit 1
 fi
 
@@ -20,8 +21,12 @@ S3_BUCKET="${S3_BUCKET:-}"
 case "$ENVIRONMENT" in
   prod)
     REGION="eu-west-1"
-    LAMBDA_NAME="transcribe-bot"
     DEFAULT_S3_BUCKET="ai-bot-prod-artifacts"
+    if [[ "$TARGET" == "worker" ]]; then
+      LAMBDA_NAME="transcribe-bot-worker"
+    else
+      LAMBDA_NAME="transcribe-bot"
+    fi
     ;;
   *)
     echo "Unknown environment '$ENVIRONMENT' (use prod)"
