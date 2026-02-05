@@ -12,6 +12,8 @@ _CLIENT = genai.Client(api_key=secret_service.get_secret("GEMINI_API_KEY"))
 
 async def refine_text(text: str) -> str:
     prompt = REFINE_PROMPT_TEMPLATE + (text or "")
+    text_len = len(text or "")
+    print(f"GEMINI_REFINE_START chars={text_len}")
 
     def _call() -> str:
         response = _CLIENT.models.generate_content(
@@ -20,4 +22,6 @@ async def refine_text(text: str) -> str:
         )
         return response.text or ""
 
-    return await asyncio.to_thread(_call)
+    result = await asyncio.to_thread(_call)
+    print(f"GEMINI_REFINE_DONE chars_in={text_len} chars_out={len(result)}")
+    return result

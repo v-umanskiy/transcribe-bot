@@ -7,6 +7,7 @@ from . import telegram_service
 from . import transcription_table_service
 from . import transcription_aws_service
 from . import gemini_service
+from utils import text_utils
 
 
 async def handle_telegram_webhook_data(data: dict) -> dict:
@@ -96,17 +97,23 @@ async def _handle_transcription_data(event: dict) -> dict:
     if not transcripts:
         return {"status": "empty_transcript"}
 
-    if not transcription_table_service.mark_job_done(job_id):
-        return {"status": "already_processed"}
-
     reply = transcripts[0].get("transcript")
     if not reply:
         return {"status": "empty_transcript"}
 
-    refined = await gemini_service.refine_text(reply)
-    refined = refined.strip() or reply
+    chunks = text_utils.split_into_chunks(reply, max_chars=3000)
+    if not chunks:
+        return {"status": "empty_transcript"}
 
-    await _send_long_message(int(chat_id), refined)
+    total_chunks = len(chunks)
+    for idx, chunk in enumerate(chunks, start=1):
+        print(f"TRANSCRIPT_CHUNK {idx}/{total_chunks} chars={len(chunk)}")
+        refined = await gemini_service.refine_text(chunk)
+        refined = refined.strip() or chunk
+        await _send_long_message(int(chat_id), refined)
+
+    if not transcription_table_service.mark_job_done(job_id):
+        return {"status": "already_processed"}
 
     return {"status": "ok"}
 
