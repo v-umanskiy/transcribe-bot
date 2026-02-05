@@ -1,10 +1,9 @@
 import asyncio
-import os
 import boto3
 
 
 dynamodb = boto3.resource("dynamodb")
-transcriptions_table = dynamodb.Table(os.getenv("TRANSCRIPTIONS_TABLE_NAME"))
+transcriptions_table = dynamodb.Table("transcribe_bot_transcription_prod")
 
 
 async def put_job(item: dict):

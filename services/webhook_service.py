@@ -4,9 +4,9 @@ from urllib.parse import unquote_plus
 
 from . import s3_service
 from . import telegram_service
-from . import transcription_table_service
 from . import transcription_aws_service
-from . import gemini_service
+from . import chunks_table_service
+from . import transcription_table_service
 from utils import text_utils
 
 
@@ -85,7 +85,6 @@ async def _handle_transcription_data(event: dict) -> dict:
     transcription_job = await transcription_table_service.get_by_job_id(job_id)
     if not transcription_job:
         return {"status": "missing_transcription_job"}
-
     if transcription_job.get("status") != "pending":
         return {"status": "already_processed"}
 
@@ -107,18 +106,8 @@ async def _handle_transcription_data(event: dict) -> dict:
 
     total_chunks = len(chunks)
     for idx, chunk in enumerate(chunks, start=1):
-        print(f"TRANSCRIPT_CHUNK {idx}/{total_chunks} chars={len(chunk)}")
-        refined = await gemini_service.refine_text(chunk)
-        refined = refined.strip() or chunk
-        await _send_long_message(int(chat_id), refined)
+        await chunks_table_service.save_chunk(job_id, idx, total_chunks, chunk, str(chat_id))
 
-    if not transcription_table_service.mark_job_done(job_id):
-        return {"status": "already_processed"}
-
+    transcription_table_service.mark_job_done(job_id)
     return {"status": "ok"}
 
-
-async def _send_long_message(chat_id: int, text: str):
-    chunk_size = 3500
-    for start in range(0, len(text), chunk_size):
-        await telegram_service.send_message(chat_id, text[start:start + chunk_size])
