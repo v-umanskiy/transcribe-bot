@@ -3,6 +3,7 @@ import json
 
 from services import chunks_table_service
 from services import sqs_service
+from services import gemini_service
 from services import telegram_service
 
 
@@ -44,10 +45,13 @@ async def _handle_records(records: list[dict]):
             print("CHUNK_MISSING_DATA:", job_id, chunk_index)
             continue
 
-        if total_chunks > 1:
-            text = f"Part {chunk_index}/{total_chunks}\n\n{text}"
+        refined = await gemini_service.refine_text(text)
+        refined = refined.strip() or text
 
-        await telegram_service.send_message(int(chat_id), text)
+        if total_chunks > 1:
+            refined = f"Part {chunk_index}/{total_chunks}\n\n{refined}"
+
+        await telegram_service.send_message(int(chat_id), refined)
 
         if not chunks_table_service.mark_chunk_done(job_id, int(chunk_index)):
             print("CHUNK_MARK_DONE_FAILED:", job_id, chunk_index)
