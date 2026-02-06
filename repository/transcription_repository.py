@@ -42,3 +42,14 @@ def update_status_log(job_id: str, status_log: str) -> bool:
         ReturnValues="UPDATED_NEW",
     )
     return True
+
+
+def update_job_file_info(job_id: str, file_url: str, file_key: str) -> bool:
+    transcriptions_table.update_item(
+        Key={"job_id": job_id},
+        UpdateExpression="SET #u = :url, #k = :key",
+        ExpressionAttributeNames={"#u": "file_url", "#k": "file_key"},
+        ExpressionAttributeValues={":url": file_url, ":key": file_key},
+        ReturnValues="UPDATED_NEW",
+    )
+    return True

@@ -7,7 +7,7 @@ set -euo pipefail
 ENVIRONMENT="${1:-}"
 TARGET="${2:-}"
 if [[ -z "$ENVIRONMENT" ]]; then
-  echo "Usage: $0 {prod} [worker]"
+  echo "Usage: $0 {prod} [worker|drive]"
   exit 1
 fi
 
@@ -24,6 +24,8 @@ case "$ENVIRONMENT" in
     DEFAULT_S3_BUCKET="ai-bot-prod-artifacts"
     if [[ "$TARGET" == "worker" ]]; then
       LAMBDA_NAME="transcribe-bot-worker"
+    elif [[ "$TARGET" == "drive" ]]; then
+      LAMBDA_NAME="transcribe-bot-drive-worker"
     else
       LAMBDA_NAME="transcribe-bot"
     fi

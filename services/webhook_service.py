@@ -39,35 +39,17 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
 
     if _looks_like_drive_link(text):
         await telegram_service.send_message(chat_id, "Got a link. I'll try to download it.")
-        file_bytes, file_name, file_id = await google_drive_service.download_public_file(text)
-        if not file_bytes or not file_name or not file_id:
-            await telegram_service.send_message(chat_id, "Sorry, I couldn’t download that Google Drive file.")
-            return {"ok": True}
-
-        drive_info = _extract_drive_file_info(file_name)
-        if drive_info is None:
-            await telegram_service.send_message(chat_id, "Please send an audio file (.wav, .mp3, .m4a, .flac, .ogg).")
-            return {"ok": True}
-
-        media_format, file_ext = drive_info
-        file_key = f"audiofiles/drive-{file_id}.{file_ext}"
-
-        status_message_id = await telegram_service.send_message(chat_id, "Recognizing voice...")
-        file_url, _ = await s3_service.upload_file_to_s3(file_bytes, file_key)
-        if not file_url:
-            await telegram_service.send_message(chat_id, "Sorry, I couldn’t upload your audio message")
-            return {"ok": True}
-
         job_id = f"tg-{uuid.uuid4()}"
         await transcription_table_service.save_transcription_job(
             chat_id,
             job_id,
-            file_url,
-            file_key,
-            status_message_id,
-            "Recognizing voice...",
+            None,
+            None,
+            None,
+            "",
+            source_url=text,
         )
-        transcription_aws_service.transcribe(job_id, file_key, media_format)
+        sqs_service.send_drive_download(job_id, text)
         return {"ok": True}
 
     if not voice and not document and not audio:
@@ -216,18 +198,6 @@ def _looks_like_drive_link(text: str) -> bool:
         return False
     lowered = text.lower()
     return "drive.google.com" in lowered or "docs.google.com" in lowered
-
-
-def _extract_drive_file_info(file_name: str) -> tuple[str, str] | None:
-    file_name_lower = file_name.lower()
-    ext = ""
-    if "." in file_name_lower:
-        ext = file_name_lower.rsplit(".", 1)[-1]
-
-    supported = {"mp3": "mp3", "wav": "wav", "flac": "flac", "ogg": "ogg", "m4a": "mp4", "mp4": "mp4"}
-    if ext not in supported:
-        return None
-    return supported[ext], ext
 
 
 async def _process_whisper_text(chat_id: str, transcript_text: str) -> dict:
