@@ -8,6 +8,8 @@ from . import transcription_aws_service
 from . import chunks_table_service
 from . import transcription_table_service
 from . import sqs_service
+from . import whisper_service
+from . import gemini_service
 from utils import text_utils
 
 
@@ -40,7 +42,11 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         )
         return {"ok": True}
 
-    file_id, file_key, media_format, error_message = _extract_audio_info(voice, document, audio)
+    file_id, file_key, media_format, file_ext, duration_seconds, error_message = _extract_audio_info(
+        voice,
+        document,
+        audio,
+    )
     if error_message:
         await telegram_service.send_message(chat_id, error_message)
         return {"ok": True}
@@ -57,16 +63,34 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         await telegram_service.send_message(chat_id, "Sorry, I couldn’t upload your audio message")
         return {"ok": True}
 
-    job_id = f"tg-{uuid.uuid4()}"
-    await transcription_table_service.save_transcription_job(
-        chat_id,
-        job_id,
-        file_url,
-        file_key,
-        status_message_id,
-        "Recognizing voice...",
-    )
-    transcription_aws_service.transcribe(job_id, file_key, media_format)
+    if duration_seconds is not None and duration_seconds <= 150:
+        try:
+            transcript_text = whisper_service.transcribe_audio_bytes(file_bytes, file_ext)
+        except Exception as exc:
+            print("WHISPER_ERROR:", repr(exc))
+            await telegram_service.send_message(chat_id, "Sorry, I couldn’t transcribe your audio message")
+            return {"ok": True}
+        if status_message_id:
+            try:
+                await telegram_service.edit_message_text(
+                    int(chat_id),
+                    int(status_message_id),
+                    "Recognizing voice...\nVoice recognized\nRefining...",
+                )
+            except Exception as exc:
+                print("STATUS_EDIT_ERROR:", repr(exc))
+        await _process_whisper_text(str(chat_id), transcript_text)
+    else:
+        job_id = f"tg-{uuid.uuid4()}"
+        await transcription_table_service.save_transcription_job(
+            chat_id,
+            job_id,
+            file_url,
+            file_key,
+            status_message_id,
+            "Recognizing voice...",
+        )
+        transcription_aws_service.transcribe(job_id, file_key, media_format)
 
     return {"ok": True}
 
@@ -113,7 +137,21 @@ async def _handle_transcription_data(event: dict) -> dict:
     if not reply:
         return {"status": "empty_transcript"}
 
-    chunks = text_utils.split_into_chunks(reply, max_chars=3000)
+    return await _process_transcript_text(
+        job_id=job_id,
+        transcription_job=transcription_job,
+        chat_id=str(chat_id),
+        transcript_text=reply,
+    )
+
+
+async def _process_transcript_text(
+    job_id: str,
+    transcription_job: dict | None,
+    chat_id: str,
+    transcript_text: str,
+) -> dict:
+    chunks = text_utils.split_into_chunks(transcript_text, max_chars=3000)
     if not chunks:
         return {"status": "empty_transcript"}
 
@@ -121,9 +159,23 @@ async def _handle_transcription_data(event: dict) -> dict:
     for idx, chunk in enumerate(chunks, start=1):
         await chunks_table_service.save_chunk(job_id, idx, total_chunks, chunk, str(chat_id))
 
+    if transcription_job is None:
+        transcription_job = await transcription_table_service.get_by_job_id(job_id)
+
     await _update_status_after_transcript(transcription_job, total_chunks)
     transcription_table_service.mark_job_done(job_id)
     sqs_service.send_chunk(job_id, 1)
+    return {"status": "ok"}
+
+
+async def _process_whisper_text(chat_id: str, transcript_text: str) -> dict:
+    refined = await gemini_service.refine_text(transcript_text)
+    refined = refined.strip() or transcript_text
+
+    parts = text_utils.split_by_length(refined, max_len=3500)
+    for part in parts:
+        await telegram_service.send_message(int(chat_id), part)
+
     return {"status": "ok"}
 
 
@@ -131,18 +183,22 @@ def _extract_audio_info(
     voice: dict | None,
     document: dict | None,
     audio: dict | None,
-) -> tuple[str | None, str | None, str | None, str | None]:
+) -> tuple[str | None, str | None, str | None, str | None, int | None, str | None]:
     if voice:
         file_id = voice.get("file_id")
         if not file_id:
-            return None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
+            return None, None, None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
+        duration = voice.get("duration")
         file_key = f"voices/{file_id}.ogg"
-        return file_id, file_key, "ogg", None
+        return file_id, file_key, "ogg", "ogg", duration, None
 
     source = document or audio
+    if not source:
+        return None, None, None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
     file_id = source.get("file_id")
     file_name = (source.get("file_name") or "").lower()
     mime_type = (source.get("mime_type") or "").lower()
+    duration = source.get("duration")
     ext = ""
     if "." in file_name:
         ext = file_name.rsplit(".", 1)[-1]
@@ -163,13 +219,15 @@ def _extract_audio_info(
 
     supported = {"mp3": "mp3", "wav": "wav", "flac": "flac", "ogg": "ogg", "m4a": "mp4", "mp4": "mp4"}
     if ext not in supported or not file_id:
-        return None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
+        return None, None, None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
 
     file_key = f"audiofiles/{file_id}.{ext}"
-    return file_id, file_key, supported[ext], None
+    return file_id, file_key, supported[ext], ext, duration, None
 
 
-async def _update_status_after_transcript(job: dict, total_chunks: int) -> None:
+async def _update_status_after_transcript(job: dict | None, total_chunks: int) -> None:
+    if not job:
+        return
     chat_id = job.get("chat_id")
     message_id = job.get("status_message_id")
     if not chat_id or not message_id:
