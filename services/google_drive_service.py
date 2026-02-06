@@ -28,7 +28,7 @@ async def download_public_file(url: str) -> Tuple[bytes | None, str | None, str 
         return None, None, None
 
     base_url = "https://drive.google.com/uc?export=download"
-    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
+    async with httpx.AsyncClient(timeout=600, follow_redirects=True) as client:
         response = await client.get(base_url, params={"id": file_id})
         response.raise_for_status()
 

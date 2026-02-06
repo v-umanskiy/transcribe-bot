@@ -38,15 +38,15 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
     text = message.get("text") or ""
 
     if _looks_like_drive_link(text):
-        await telegram_service.send_message(chat_id, "Got a link. I'll try to download it.")
+        status_message_id = await telegram_service.send_message(chat_id, "Got a link. I'll try to download it.")
         job_id = f"tg-{uuid.uuid4()}"
         await transcription_table_service.save_transcription_job(
             chat_id,
             job_id,
             None,
             None,
-            None,
-            "",
+            status_message_id,
+            "Got a link. I'll try to download it.",
             source_url=text,
         )
         sqs_service.send_drive_download(job_id, text)

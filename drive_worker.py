@@ -5,6 +5,7 @@ from services import google_drive_service
 from services import s3_service
 from services import transcription_aws_service
 from services import transcription_table_service
+from services import telegram_service
 
 
 def handler(event, _context):
@@ -37,6 +38,8 @@ async def _handle_records(records: list[dict]):
             print("DRIVE_DOWNLOAD_FAILED:", url)
             continue
 
+        await _append_status(job_id, "Downloaded file\nProcessing...")
+
         drive_info = _extract_drive_file_info(file_name)
         if drive_info is None:
             print("DRIVE_UNSUPPORTED_FILE:", file_name)
@@ -51,6 +54,7 @@ async def _handle_records(records: list[dict]):
             continue
 
         transcription_table_service.update_job_file_info(job_id, file_url, file_key)
+        await _append_status(job_id, "Recognizing voice...")
         transcription_aws_service.transcribe(job_id, file_key, media_format)
 
 
@@ -64,3 +68,24 @@ def _extract_drive_file_info(file_name: str) -> tuple[str, str] | None:
     if ext not in supported:
         return None
     return supported[ext], ext
+
+
+async def _append_status(job_id: str, message: str) -> None:
+    job = await transcription_table_service.get_by_job_id(job_id)
+    if not job:
+        return
+
+    chat_id = job.get("chat_id")
+    message_id = job.get("status_message_id")
+    if not chat_id or not message_id:
+        return
+
+    status_log = (job.get("status_log") or "").strip()
+    new_log = f"{status_log}\n{message}" if status_log else message
+    if not transcription_table_service.update_status_log(job_id, new_log):
+        return
+
+    try:
+        await telegram_service.edit_message_text(int(chat_id), int(message_id), new_log)
+    except Exception as exc:
+        print("STATUS_EDIT_ERROR:", repr(exc))
