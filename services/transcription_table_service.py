@@ -10,6 +10,7 @@ async def save_transcription_job(
     status_message_id: int | None,
     status_log: str | None,
 ):
+    ttl = int(time.time()) + 7 * 24 * 60 * 60
     item = {
         "chat_id": str(chat_id),
         "ts": int(time.time() * 1000),
@@ -19,6 +20,7 @@ async def save_transcription_job(
         "status": "pending",
         "status_message_id": status_message_id,
         "status_log": status_log or "",
+        "ttl": ttl,
     }
     return await transcription_repository.put_job(item)
 
