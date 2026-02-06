@@ -4,6 +4,7 @@ import json
 from services import chunks_table_service
 from services import sqs_service
 from services import gemini_service
+from utils import text_utils
 from services import telegram_service
 
 
@@ -48,10 +49,13 @@ async def _handle_records(records: list[dict]):
         refined = await gemini_service.refine_text(text)
         refined = refined.strip() or text
 
-        if total_chunks > 1:
-            refined = f"Part {chunk_index}/{total_chunks}\n\n{refined}"
+        parts = text_utils.split_by_length(refined, max_len=3500)
 
-        await telegram_service.send_message(int(chat_id), refined)
+        if total_chunks > 1:
+            parts[0] = f"Part {chunk_index}/{total_chunks}\n\n{parts[0]}"
+
+        for part in parts:
+            await telegram_service.send_message(int(chat_id), part)
 
         if not chunks_table_service.mark_chunk_done(job_id, int(chunk_index)):
             print("CHUNK_MARK_DONE_FAILED:", job_id, chunk_index)

@@ -36,3 +36,11 @@ def split_into_chunks(text: str, max_chars: int = 3000) -> list[str]:
         chunks.append(current.strip())
 
     return chunks
+
+
+def split_by_length(text: str, max_len: int) -> list[str]:
+    if not text:
+        return []
+    if max_len <= 0:
+        return [text]
+    return [text[i:i + max_len] for i in range(0, len(text), max_len)]
