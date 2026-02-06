@@ -30,26 +30,31 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         return {"ok": True}
 
     voice = message.get("voice")
-    if not voice:
-        await telegram_service.send_message(chat_id, "please send a voice message")
+    document = message.get("document")
+    audio = message.get("audio")
+
+    if not voice and not document and not audio:
+        await telegram_service.send_message(
+            chat_id,
+            "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg).",
+        )
         return {"ok": True}
 
-    file_id = voice.get("file_id")
-    if not file_id:
-        await telegram_service.send_message(chat_id, "please send a voice message")
+    file_id, file_key, media_format, error_message = _extract_audio_info(voice, document, audio)
+    if error_message:
+        await telegram_service.send_message(chat_id, error_message)
         return {"ok": True}
 
     status_message_id = await telegram_service.send_message(chat_id, "Recognizing voice...")
 
     file_bytes = await telegram_service.download_file_from_telegram(file_id)
     if not file_bytes:
-        await telegram_service.send_message(chat_id, "Sorry, I couldn’t download your voice message")
+        await telegram_service.send_message(chat_id, "Sorry, I couldn’t download your audio message")
         return {"ok": True}
 
-    file_key = f"voices/{file_id}.ogg"
     file_url, _ = await s3_service.upload_file_to_s3(file_bytes, file_key)
     if not file_url:
-        await telegram_service.send_message(chat_id, "Sorry, I couldn’t upload your voice message")
+        await telegram_service.send_message(chat_id, "Sorry, I couldn’t upload your audio message")
         return {"ok": True}
 
     job_id = f"tg-{uuid.uuid4()}"
@@ -61,7 +66,7 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         status_message_id,
         "Recognizing voice...",
     )
-    transcription_aws_service.transcribe(job_id, file_key)
+    transcription_aws_service.transcribe(job_id, file_key, media_format)
 
     return {"ok": True}
 
@@ -120,6 +125,48 @@ async def _handle_transcription_data(event: dict) -> dict:
     transcription_table_service.mark_job_done(job_id)
     sqs_service.send_chunk(job_id, 1)
     return {"status": "ok"}
+
+
+def _extract_audio_info(
+    voice: dict | None,
+    document: dict | None,
+    audio: dict | None,
+) -> tuple[str | None, str | None, str | None, str | None]:
+    if voice:
+        file_id = voice.get("file_id")
+        if not file_id:
+            return None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
+        file_key = f"voices/{file_id}.ogg"
+        return file_id, file_key, "ogg", None
+
+    source = document or audio
+    file_id = source.get("file_id")
+    file_name = (source.get("file_name") or "").lower()
+    mime_type = (source.get("mime_type") or "").lower()
+    ext = ""
+    if "." in file_name:
+        ext = file_name.rsplit(".", 1)[-1]
+
+    mime_to_ext = {
+        "audio/mpeg": "mp3",
+        "audio/mp3": "mp3",
+        "audio/wav": "wav",
+        "audio/x-wav": "wav",
+        "audio/flac": "flac",
+        "audio/ogg": "ogg",
+        "audio/mp4": "mp4",
+        "audio/x-m4a": "m4a",
+        "audio/m4a": "m4a",
+    }
+    if not ext and mime_type in mime_to_ext:
+        ext = mime_to_ext[mime_type]
+
+    supported = {"mp3": "mp3", "wav": "wav", "flac": "flac", "ogg": "ogg", "m4a": "mp4", "mp4": "mp4"}
+    if ext not in supported or not file_id:
+        return None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
+
+    file_key = f"audiofiles/{file_id}.{ext}"
+    return file_id, file_key, supported[ext], None
 
 
 async def _update_status_after_transcript(job: dict, total_chunks: int) -> None:
