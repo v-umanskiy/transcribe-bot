@@ -11,3 +11,11 @@ async def save_chunk(job_id: str, chunk_index: int, total_chunks: int, text: str
         "status": "pending",
     }
     return await chunks_repository.put_chunk(item)
+
+
+async def get_chunk(job_id: str, chunk_index: int) -> dict | None:
+    return await chunks_repository.get_chunk(job_id, chunk_index)
+
+
+def mark_chunk_done(job_id: str, chunk_index: int) -> bool:
+    return chunks_repository.mark_chunk_done(job_id, chunk_index)
