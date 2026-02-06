@@ -31,3 +31,14 @@ def update_status_if_pending(job_id: str, new_status: str) -> bool:
         return True
     except dynamodb.meta.client.exceptions.ConditionalCheckFailedException:
         return False
+
+
+def update_status_log(job_id: str, status_log: str) -> bool:
+    transcriptions_table.update_item(
+        Key={"job_id": job_id},
+        UpdateExpression="SET #l = :log",
+        ExpressionAttributeNames={"#l": "status_log"},
+        ExpressionAttributeValues={":log": status_log},
+        ReturnValues="UPDATED_NEW",
+    )
+    return True

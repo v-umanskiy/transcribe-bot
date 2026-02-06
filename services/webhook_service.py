@@ -39,7 +39,7 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         await telegram_service.send_message(chat_id, "please send a voice message")
         return {"ok": True}
 
-    await telegram_service.send_message(chat_id, "got a voice message")
+    status_message_id = await telegram_service.send_message(chat_id, "Recognizing voice...")
 
     file_bytes = await telegram_service.download_file_from_telegram(file_id)
     if not file_bytes:
@@ -53,7 +53,14 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         return {"ok": True}
 
     job_id = f"tg-{uuid.uuid4()}"
-    await transcription_table_service.save_transcription_job(chat_id, job_id, file_url, file_key)
+    await transcription_table_service.save_transcription_job(
+        chat_id,
+        job_id,
+        file_url,
+        file_key,
+        status_message_id,
+        "Recognizing voice...",
+    )
     transcription_aws_service.transcribe(job_id, file_key)
 
     return {"ok": True}
@@ -109,6 +116,30 @@ async def _handle_transcription_data(event: dict) -> dict:
     for idx, chunk in enumerate(chunks, start=1):
         await chunks_table_service.save_chunk(job_id, idx, total_chunks, chunk, str(chat_id))
 
+    await _update_status_after_transcript(transcription_job, total_chunks)
     transcription_table_service.mark_job_done(job_id)
     sqs_service.send_chunk(job_id, 1)
     return {"status": "ok"}
+
+
+async def _update_status_after_transcript(job: dict, total_chunks: int) -> None:
+    chat_id = job.get("chat_id")
+    message_id = job.get("status_message_id")
+    if not chat_id or not message_id:
+        return
+
+    status_log = (job.get("status_log") or "").strip()
+    lines = [line for line in status_log.split("\n") if line] if status_log else []
+    lines.append("Voice recognized")
+    if total_chunks > 1:
+        lines.append(f"{total_chunks} parts prepared")
+    lines.append("Refining...")
+    new_log = "\n".join(lines)
+
+    if not transcription_table_service.update_status_log(job["job_id"], new_log):
+        return
+
+    try:
+        await telegram_service.edit_message_text(int(chat_id), int(message_id), new_log)
+    except Exception as exc:
+        print("STATUS_EDIT_ERROR:", repr(exc))

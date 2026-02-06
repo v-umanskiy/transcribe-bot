@@ -7,7 +7,7 @@ TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 TELEGRAM_FILE_URL = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}"
 
 
-async def send_message(chat_id: int, text: str):
+async def send_message(chat_id: int, text: str) -> int | None:
     url = f"{TELEGRAM_API_URL}/sendMessage"
     payload = {
         "chat_id": chat_id,
@@ -19,8 +19,31 @@ async def send_message(chat_id: int, text: str):
             response = await client.post(url, json=payload)
             if not response.is_success:
                 print("SEND_MESSAGE_ERROR:", response.status_code, response.text)
+                return None
+            data = response.json()
+            return data.get("result", {}).get("message_id")
         except Exception as exc:
             print("SEND_MESSAGE_ERROR:", repr(exc))
+            return None
+
+
+async def edit_message_text(chat_id: int, message_id: int, text: str) -> bool:
+    url = f"{TELEGRAM_API_URL}/editMessageText"
+    payload = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text,
+    }
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            response = await client.post(url, json=payload)
+            if not response.is_success:
+                print("EDIT_MESSAGE_TEXT_ERROR:", response.status_code, response.text)
+                return False
+            return True
+        except Exception as exc:
+            print("EDIT_MESSAGE_TEXT_ERROR:", repr(exc))
+            return False
 
 
 async def download_file_from_telegram(file_id: str) -> bytes | None:

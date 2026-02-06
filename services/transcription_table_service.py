@@ -2,7 +2,14 @@ import time
 from repository import transcription_repository
 
 
-async def save_transcription_job(chat_id: int, job_id: str, file_url: str, file_key: str):
+async def save_transcription_job(
+    chat_id: int,
+    job_id: str,
+    file_url: str,
+    file_key: str,
+    status_message_id: int | None,
+    status_log: str | None,
+):
     item = {
         "chat_id": str(chat_id),
         "ts": int(time.time() * 1000),
@@ -10,6 +17,8 @@ async def save_transcription_job(chat_id: int, job_id: str, file_url: str, file_
         "file_url": file_url,
         "file_key": file_key,
         "status": "pending",
+        "status_message_id": status_message_id,
+        "status_log": status_log or "",
     }
     return await transcription_repository.put_job(item)
 
@@ -31,4 +40,12 @@ def mark_job_done(job_id: str) -> bool:
         return transcription_repository.update_status_if_pending(job_id, "done")
     except Exception as exc:
         print(f"Failed to mark job {job_id} as done: {exc}")
+        return False
+
+
+def update_status_log(job_id: str, status_log: str) -> bool:
+    try:
+        return transcription_repository.update_status_log(job_id, status_log)
+    except Exception as exc:
+        print(f"Failed to update status log for job {job_id}: {exc}")
         return False
