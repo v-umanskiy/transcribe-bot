@@ -42,7 +42,7 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         )
         return {"ok": True}
 
-    file_id, file_key, media_format, file_ext, duration_seconds, error_message = _extract_audio_info(
+    file_id, file_key, media_format, file_ext, duration_seconds, file_size_bytes, error_message = _extract_audio_info(
         voice,
         document,
         audio,
@@ -63,7 +63,7 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         await telegram_service.send_message(chat_id, "Sorry, I couldn’t upload your audio message")
         return {"ok": True}
 
-    if duration_seconds is not None and duration_seconds <= 150:
+    if _should_use_whisper(duration_seconds, file_size_bytes):
         try:
             transcript_text = whisper_service.transcribe_audio_bytes(file_bytes, file_ext)
         except Exception as exc:
@@ -183,22 +183,24 @@ def _extract_audio_info(
     voice: dict | None,
     document: dict | None,
     audio: dict | None,
-) -> tuple[str | None, str | None, str | None, str | None, int | None, str | None]:
+) -> tuple[str | None, str | None, str | None, str | None, int | None, int | None, str | None]:
     if voice:
         file_id = voice.get("file_id")
         if not file_id:
-            return None, None, None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
+            return None, None, None, None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
         duration = voice.get("duration")
+        file_size = voice.get("file_size")
         file_key = f"voices/{file_id}.ogg"
-        return file_id, file_key, "ogg", "ogg", duration, None
+        return file_id, file_key, "ogg", "ogg", duration, file_size, None
 
     source = document or audio
     if not source:
-        return None, None, None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
+        return None, None, None, None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
     file_id = source.get("file_id")
     file_name = (source.get("file_name") or "").lower()
     mime_type = (source.get("mime_type") or "").lower()
     duration = source.get("duration")
+    file_size = source.get("file_size")
     ext = ""
     if "." in file_name:
         ext = file_name.rsplit(".", 1)[-1]
@@ -219,10 +221,20 @@ def _extract_audio_info(
 
     supported = {"mp3": "mp3", "wav": "wav", "flac": "flac", "ogg": "ogg", "m4a": "mp4", "mp4": "mp4"}
     if ext not in supported or not file_id:
-        return None, None, None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
+        return None, None, None, None, None, None, "Please send a voice message or an audio file (.wav, .mp3, .m4a, .flac, .ogg)."
 
     file_key = f"audiofiles/{file_id}.{ext}"
-    return file_id, file_key, supported[ext], ext, duration, None
+    return file_id, file_key, supported[ext], ext, duration, file_size, None
+
+
+def _should_use_whisper(duration_seconds: int | None, file_size_bytes: int | None) -> bool:
+    if duration_seconds is None:
+        return False
+    if duration_seconds > 180:
+        return False
+    if file_size_bytes is None:
+        return True
+    return file_size_bytes <= 20 * 1024 * 1024
 
 
 async def _update_status_after_transcript(job: dict | None, total_chunks: int) -> None:
