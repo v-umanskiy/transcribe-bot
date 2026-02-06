@@ -2,6 +2,7 @@ import asyncio
 import json
 
 from services import chunks_table_service
+from services import sqs_service
 from services import telegram_service
 
 
@@ -44,9 +45,13 @@ async def _handle_records(records: list[dict]):
             continue
 
         if total_chunks > 1:
-            text = f"Part {chunk_index}\\n\\n{text}"
+            text = f"Part {chunk_index}/{total_chunks}\n\n{text}"
 
         await telegram_service.send_message(int(chat_id), text)
 
         if not chunks_table_service.mark_chunk_done(job_id, int(chunk_index)):
             print("CHUNK_MARK_DONE_FAILED:", job_id, chunk_index)
+            continue
+
+        if int(chunk_index) < total_chunks:
+            sqs_service.send_chunk(job_id, int(chunk_index) + 1)
