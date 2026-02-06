@@ -34,6 +34,11 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
     voice = message.get("voice")
     document = message.get("document")
     audio = message.get("audio")
+    text = message.get("text") or ""
+
+    if _looks_like_drive_link(text):
+        await telegram_service.send_message(chat_id, "Got a link. I'll try to download it.")
+        return {"ok": True}
 
     if not voice and not document and not audio:
         await telegram_service.send_message(
@@ -49,6 +54,14 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
     )
     if error_message:
         await telegram_service.send_message(chat_id, error_message)
+        return {"ok": True}
+
+    if file_size_bytes is not None and file_size_bytes > 20 * 1024 * 1024:
+        await telegram_service.send_message(
+            chat_id,
+            "This file is too large for Telegram downloads. "
+            "Please share a public Google Drive link to the file.",
+        )
         return {"ok": True}
 
     status_message_id = await telegram_service.send_message(chat_id, "Recognizing voice...")
@@ -166,6 +179,13 @@ async def _process_transcript_text(
     transcription_table_service.mark_job_done(job_id)
     sqs_service.send_chunk(job_id, 1)
     return {"status": "ok"}
+
+
+def _looks_like_drive_link(text: str) -> bool:
+    if not text:
+        return False
+    lowered = text.lower()
+    return "drive.google.com" in lowered or "docs.google.com" in lowered
 
 
 async def _process_whisper_text(chat_id: str, transcript_text: str) -> dict:
