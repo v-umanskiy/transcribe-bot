@@ -88,12 +88,22 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         await telegram_service.send_message(chat_id, "Sorry, I couldn’t upload your audio message")
         return {"ok": True}
 
-    if _should_use_whisper(duration_seconds, file_size_bytes):
+    job_id = f"tg-{uuid.uuid4()}"
+
+    if _should_use_whisper(duration_seconds, file_size_bytes, file_ext):
         try:
             transcript_text = whisper_service.transcribe_audio_bytes(file_bytes, file_ext)
         except Exception as exc:
             print("WHISPER_ERROR:", repr(exc))
-            await telegram_service.send_message(chat_id, "Sorry, I couldn’t transcribe your audio message")
+            await transcription_table_service.save_transcription_job(
+                chat_id,
+                job_id,
+                file_url,
+                file_key,
+                status_message_id,
+                "Recognizing voice...",
+            )
+            transcription_aws_service.transcribe(job_id, file_key, media_format)
             return {"ok": True}
         if status_message_id:
             try:
@@ -106,7 +116,6 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
                 print("STATUS_EDIT_ERROR:", repr(exc))
         await _process_whisper_text(str(chat_id), transcript_text)
     else:
-        job_id = f"tg-{uuid.uuid4()}"
         await transcription_table_service.save_transcription_job(
             chat_id,
             job_id,
@@ -259,14 +268,23 @@ def _extract_audio_info(
     return file_id, file_key, supported[ext], ext, duration, file_size, None
 
 
-def _should_use_whisper(duration_seconds: int | None, file_size_bytes: int | None) -> bool:
+def _should_use_whisper(duration_seconds: int | None, file_size_bytes: int | None, file_ext: str | None) -> bool:
     if duration_seconds is None:
         return False
     if duration_seconds > 180:
         return False
+    if not _whisper_supported_ext(file_ext):
+        return False
     if file_size_bytes is None:
         return True
     return file_size_bytes <= 20 * 1024 * 1024
+
+
+def _whisper_supported_ext(file_ext: str | None) -> bool:
+    if not file_ext:
+        return False
+    ext = file_ext.lower().lstrip(".")
+    return ext in {"ogg", "mp3", "wav", "flac"}
 
 
 async def _update_status_after_transcript(job: dict | None, total_chunks: int) -> None:

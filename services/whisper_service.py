@@ -11,7 +11,10 @@ def transcribe_audio_bytes(file_bytes: bytes, file_ext: str) -> str:
     if not api_key:
         raise RuntimeError("Missing OPENAI_API_KEY in secret")
 
-    suffix = f".{file_ext}" if file_ext and not file_ext.startswith(".") else file_ext
+    ext = (file_ext or "").lstrip(".").lower()
+    if ext == "m4a":
+        ext = "mp4"
+    suffix = f".{ext}" if ext else ".wav"
     if not suffix:
         suffix = ".wav"
 
