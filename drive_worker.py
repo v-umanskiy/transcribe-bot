@@ -6,6 +6,7 @@ from services import s3_service
 from services import transcription_aws_service
 from services import transcription_table_service
 from services import telegram_service
+from utils.constants import DRIVE_DOWNLOAD_FAILED_MESSAGE
 
 
 def handler(event, _context):
@@ -36,14 +37,22 @@ async def _handle_records(records: list[dict]):
         file_bytes, file_name, file_id = await google_drive_service.download_public_file(url)
         if not file_bytes or not file_name or not file_id:
             print("DRIVE_DOWNLOAD_FAILED:", url)
+            await _append_status(
+                job_id,
+                DRIVE_DOWNLOAD_FAILED_MESSAGE,
+            )
             continue
-
-        await _append_status(job_id, "Downloaded file\nProcessing...")
 
         drive_info = _extract_drive_file_info(file_name)
         if drive_info is None:
             print("DRIVE_UNSUPPORTED_FILE:", file_name)
+            await _append_status(
+                job_id,
+                DRIVE_DOWNLOAD_FAILED_MESSAGE,
+            )
             continue
+
+        await _append_status(job_id, "Downloaded file\nProcessing...")
 
         media_format, file_ext = drive_info
         file_key = f"audiofiles/drive-{file_id}.{file_ext}"
