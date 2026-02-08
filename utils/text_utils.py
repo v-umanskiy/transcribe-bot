@@ -1,6 +1,13 @@
 import re
 
 
+def looks_like_drive_link(text: str) -> bool:
+    if not text:
+        return False
+    lowered = text.lower()
+    return "drive.google.com" in lowered or "docs.google.com" in lowered
+
+
 def split_into_chunks(text: str, max_chars: int = 3000) -> list[str]:
     cleaned = " ".join((text or "").split())
     if not cleaned:
