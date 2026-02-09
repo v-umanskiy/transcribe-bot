@@ -16,6 +16,11 @@ Telegram bot for transcribing voice notes and audio files. Short clips are handl
 - DynamoDB tables store transcription jobs and chunk state.
 - S3 stores uploaded audio and transcript JSONs.
 
+## Notable design decisions
+- Dual transcription path (latency vs cost tradeoff).
+- Chunking pipeline for long transcripts.
+- Decoupling via SQS and EventBridge.
+
 ## API Endpoints
 - `GET /` health check.
 - `POST /telegram/webhook` Telegram webhook receiver (uses `WEBHOOK_SECRET`).
