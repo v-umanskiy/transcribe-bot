@@ -9,7 +9,8 @@ Telegram bot for transcribing voice notes and audio files. Short clips are handl
 - Delivers results back to Telegram in multiple parts when needed.
 
 ## Architecture
-- `app.py` provides FastAPI endpoints for Telegram webhooks and transcription events.
+- `app.py` provides FastAPI endpoints for Telegram webhooks.
+- `transcript_event_entry.py` handles transcript S3 events (EventBridge -> Lambda).
 - `worker.py` handles transcript chunk refinement and delivery (SQS-triggered Lambda).
 - `drive_worker.py` downloads public Drive files and kicks off AWS Transcribe.
 - DynamoDB tables store transcription jobs and chunk state.
@@ -18,7 +19,6 @@ Telegram bot for transcribing voice notes and audio files. Short clips are handl
 ## API Endpoints
 - `GET /` health check.
 - `POST /telegram/webhook` Telegram webhook receiver (uses `WEBHOOK_SECRET`).
-- `POST /transcript/event` handles new transcript JSON events from S3/Transcribe.
 
 ## Configuration
 
@@ -46,6 +46,7 @@ The deployment script builds and ships Lambda artifacts:
 - API Lambda: `./deploy.sh prod`
 - Chunk worker: `./deploy.sh prod worker`
 - Drive worker: `./deploy.sh prod drive`
+- Transcript event lambda: `./deploy.sh prod transcript`
 
 `deploy.sh` uses the AWS CLI profile `personal` and supports `S3_BUCKET` for artifacts.
 
