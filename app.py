@@ -3,7 +3,6 @@ from mangum import Mangum
 
 import services.secret_service as secret_service
 import services.webhook_service as webhook_service
-import services.transcription_event_handler as transcription_event_handler
 
 app = FastAPI()
 handler = Mangum(app)
@@ -29,8 +28,3 @@ async def telegram_webhook(
 
     return await webhook_service.handle_telegram_webhook_data(data)
 
-
-@app.post("/transcript/event")
-async def transcript_event(request: Request):
-    event = await request.json()
-    return await transcription_event_handler.handle_transcription_data(event)
