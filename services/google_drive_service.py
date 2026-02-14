@@ -22,10 +22,13 @@ def extract_drive_file_id(url: str) -> str | None:
     return None
 
 
-async def download_public_file(url: str) -> Tuple[bytes | None, str | None, str | None]:
+async def download_public_file(
+    url: str,
+    max_bytes: int | None = None,
+) -> Tuple[bytes | None, str | None, str | None, str | None]:
     file_id = extract_drive_file_id(url)
     if not file_id:
-        return None, None, None
+        return None, None, None, "invalid_url"
 
     base_url = "https://drive.google.com/uc?export=download"
     async with httpx.AsyncClient(timeout=600, follow_redirects=True) as client:
@@ -37,9 +40,15 @@ async def download_public_file(url: str) -> Tuple[bytes | None, str | None, str 
             response = await client.get(base_url, params={"id": file_id, "confirm": token})
             response.raise_for_status()
 
+        if _content_too_large(response, max_bytes):
+            return None, None, file_id, "file_too_large"
+
         content = response.content
+        if max_bytes is not None and len(content) > max_bytes:
+            return None, None, file_id, "file_too_large"
+
         filename = _extract_filename(response.headers.get("content-disposition"), file_id, response.headers.get("content-type"))
-        return content, filename, file_id
+        return content, filename, file_id, None
 
 
 def _extract_confirm_token(response: httpx.Response) -> str | None:
@@ -52,6 +61,18 @@ def _extract_confirm_token(response: httpx.Response) -> str | None:
         if match:
             return match.group(1)
     return None
+
+
+def _content_too_large(response: httpx.Response, max_bytes: int | None) -> bool:
+    if max_bytes is None:
+        return False
+    content_length = response.headers.get("content-length")
+    if not content_length:
+        return False
+    try:
+        return int(content_length) > max_bytes
+    except ValueError:
+        return False
 
 
 def _extract_filename(content_disposition: str | None, file_id: str, content_type: str | None) -> str:

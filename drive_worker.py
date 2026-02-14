@@ -6,7 +6,9 @@ from services import s3_service
 from services import transcription_aws_service
 from services import transcription_table_service
 from services import telegram_service
-from utils.constants import DRIVE_DOWNLOAD_FAILED_MESSAGE
+from utils.constants import DRIVE_DOWNLOAD_FAILED_MESSAGE, DRIVE_FILE_TOO_LARGE_MESSAGE
+
+MAX_DRIVE_FILE_BYTES = 70 * 1024 * 1024
 
 
 def handler(event, _context):
@@ -34,7 +36,17 @@ async def _handle_records(records: list[dict]):
             print("SQS_BODY_MISSING_FIELDS:", payload)
             continue
 
-        file_bytes, file_name, file_id = await google_drive_service.download_public_file(url)
+        file_bytes, file_name, file_id, error = await google_drive_service.download_public_file(
+            url,
+            max_bytes=MAX_DRIVE_FILE_BYTES,
+        )
+        if error == "file_too_large":
+            print("DRIVE_FILE_TOO_LARGE:", url)
+            await _append_status(
+                job_id,
+                DRIVE_FILE_TOO_LARGE_MESSAGE,
+            )
+            continue
         if not file_bytes or not file_name or not file_id:
             print("DRIVE_DOWNLOAD_FAILED:", url)
             await _append_status(

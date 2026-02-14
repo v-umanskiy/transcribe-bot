@@ -11,3 +11,7 @@ REFINE_SYSTEM_PROMPT = (
 DRIVE_DOWNLOAD_FAILED_MESSAGE = (
     "Couldn't download the file. Please check the link is public and try again."
 )
+
+DRIVE_FILE_TOO_LARGE_MESSAGE = (
+    "This file is too large. Please share a file under 70 MB."
+)
