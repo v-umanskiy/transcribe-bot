@@ -16,7 +16,7 @@ def transcribe(job_id: str, file_key: str, media_format: str) -> str:
         Media={"MediaFileUri": job_uri},
         MediaFormat=media_format,
         IdentifyLanguage=True,
-        LanguageOptions=["ru-RU", "en-US", "de-DE"],
+        LanguageOptions=["ru-RU", "en-US", "de-DE", "zh-CN", "zh-TW", "vi-VN"],
         OutputBucketName=S3_BUCKET_NAME,
         OutputKey=f"transcripts/{job_id}.json",
     )
