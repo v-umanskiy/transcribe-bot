@@ -6,6 +6,7 @@ from services import sqs_service
 from services import gemini_service
 from utils import text_utils
 from services import telegram_service
+from services import transcription_table_service
 
 
 def handler(event, _context):
@@ -63,3 +64,10 @@ async def _handle_records(records: list[dict]):
 
         if int(chunk_index) < total_chunks:
             sqs_service.send_chunk(job_id, int(chunk_index) + 1)
+            continue
+
+        job = await transcription_table_service.get_by_job_id(job_id)
+        if job:
+            status_message_id = job.get("status_message_id")
+            if status_message_id:
+                await telegram_service.delete_message(int(chat_id), int(status_message_id))

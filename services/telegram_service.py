@@ -46,6 +46,21 @@ async def edit_message_text(chat_id: int, message_id: int, text: str) -> bool:
             return False
 
 
+async def delete_message(chat_id: int, message_id: int) -> None:
+    url = f"{TELEGRAM_API_URL}/deleteMessage"
+    payload = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+    }
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            response = await client.post(url, json=payload)
+            if not response.is_success:
+                print("DELETE_MESSAGE_ERROR:", response.status_code, response.text)
+        except Exception as exc:
+            print("DELETE_MESSAGE_ERROR:", repr(exc))
+
+
 async def download_file_from_telegram(file_id: str) -> bytes | None:
     async with httpx.AsyncClient(timeout=10) as client:
         file_path = await _get_telegram_file_path(client, file_id)

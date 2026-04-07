@@ -134,6 +134,8 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
                 "Recognizing voice...\nVoice recognized\nRefining...",
             )
         await _process_whisper_text(str(chat_id), transcript_text)
+        if status_message_id:
+            await telegram_service.delete_message(int(chat_id), int(status_message_id))
     else:
         await transcription_table_service.save_transcription_job(
             chat_id,
