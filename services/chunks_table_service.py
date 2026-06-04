@@ -1,10 +1,11 @@
 import time
 
 from repository import chunks_repository
+from utils.constants import RETENTION_DAYS
 
 
 async def save_chunk(job_id: str, chunk_index: int, total_chunks: int, text: str, chat_id: str):
-    ttl = int(time.time()) + 7 * 24 * 60 * 60
+    ttl = int(time.time()) + RETENTION_DAYS * 24 * 60 * 60
     item = {
         "job_id": job_id,
         "chunk_index": int(chunk_index),

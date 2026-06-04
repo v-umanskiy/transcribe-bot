@@ -1,5 +1,6 @@
 import time
 from repository import transcription_repository
+from utils.constants import RETENTION_DAYS
 
 
 async def save_transcription_job(
@@ -11,7 +12,7 @@ async def save_transcription_job(
     status_log: str | None,
     source_url: str | None = None,
 ):
-    ttl = int(time.time()) + 7 * 24 * 60 * 60
+    ttl = int(time.time()) + RETENTION_DAYS * 24 * 60 * 60
     item = {
         "chat_id": str(chat_id),
         "ts": int(time.time() * 1000),
