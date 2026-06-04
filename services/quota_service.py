@@ -32,6 +32,20 @@ class MonthlyQuotaResult:
         return max(self.limit_bytes - self.used_bytes, 0)
 
 
+@dataclass(frozen=True)
+class MonthlyQuotaStatus:
+    chat_id: str
+    month: str
+    limit_bytes: int
+    quota_policy_version: str
+    used_bytes: int
+    job_count: int
+
+    @property
+    def remaining_bytes(self) -> int:
+        return max(self.limit_bytes - self.used_bytes, 0)
+
+
 def current_month() -> str:
     return datetime.now(UTC).strftime("%Y-%m")
 
@@ -46,6 +60,21 @@ def configured_quota_policy_version() -> str:
 
 async def get_monthly_usage(chat_id: str, month: str | None = None) -> dict | None:
     return await usage_repository.get_monthly_usage(str(chat_id), month or current_month())
+
+
+async def get_monthly_quota_status(chat_id: str, month: str | None = None) -> MonthlyQuotaStatus:
+    usage_month = month or current_month()
+    usage = await usage_repository.get_monthly_usage(str(chat_id), usage_month)
+    return MonthlyQuotaStatus(
+        chat_id=str(chat_id),
+        month=usage_month,
+        limit_bytes=int((usage or {}).get("limit_bytes") or configured_limit_bytes()),
+        quota_policy_version=str(
+            (usage or {}).get("quota_policy_version") or configured_quota_policy_version()
+        ),
+        used_bytes=int((usage or {}).get("used_bytes") or 0),
+        job_count=int((usage or {}).get("job_count") or 0),
+    )
 
 
 async def record_monthly_bytes(

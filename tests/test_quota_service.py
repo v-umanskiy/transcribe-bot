@@ -10,6 +10,45 @@ def test_current_month_uses_year_month_format():
 
 
 @pytest.mark.anyio
+async def test_get_monthly_quota_status_defaults_when_no_usage(monkeypatch):
+    async def get_usage(chat_id, month):
+        assert chat_id == "123"
+        assert month == "2026-06"
+        return None
+
+    monkeypatch.setattr(quota_service.usage_repository, "get_monthly_usage", get_usage)
+
+    status = await quota_service.get_monthly_quota_status("123", month="2026-06")
+
+    assert status.used_bytes == 0
+    assert status.job_count == 0
+    assert status.limit_bytes == quota_service.MONTHLY_QUOTA_BYTES
+    assert status.quota_policy_version == quota_service.MONTHLY_QUOTA_POLICY_VERSION
+
+
+@pytest.mark.anyio
+async def test_get_monthly_quota_status_uses_persisted_usage(monkeypatch):
+    async def get_usage(chat_id, month):
+        assert chat_id == "123"
+        assert month == "2026-06"
+        return {
+            "used_bytes": 25,
+            "job_count": 2,
+            "limit_bytes": 100,
+            "quota_policy_version": "persisted-policy",
+        }
+
+    monkeypatch.setattr(quota_service.usage_repository, "get_monthly_usage", get_usage)
+
+    status = await quota_service.get_monthly_quota_status("123", month="2026-06")
+
+    assert status.used_bytes == 25
+    assert status.job_count == 2
+    assert status.limit_bytes == 100
+    assert status.quota_policy_version == "persisted-policy"
+
+
+@pytest.mark.anyio
 async def test_record_monthly_bytes_reports_updated_usage(monkeypatch):
     async def record(chat_id, month, bytes_count, limit_bytes, quota_policy_version):
         assert chat_id == "123"

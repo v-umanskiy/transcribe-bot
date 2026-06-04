@@ -68,3 +68,64 @@ async def test_record_usage_observe_does_not_block_on_error(webhook_service, mon
     monkeypatch.setattr(webhook_service.quota_service, "record_monthly_bytes", record)
 
     await webhook_service._record_usage_observe(123, b"abc", "ogg")
+
+
+@pytest.mark.anyio
+async def test_limit_command_sends_quota_status(webhook_service, monkeypatch):
+    sent_messages = []
+
+    async def get_status(chat_id):
+        assert chat_id == "123"
+        return webhook_service.quota_service.MonthlyQuotaStatus(
+            chat_id=chat_id,
+            month="2026-06",
+            limit_bytes=100 * 1024 * 1024,
+            quota_policy_version="test-policy",
+            used_bytes=25 * 1024 * 1024,
+            job_count=3,
+        )
+
+    async def send_message(chat_id, message):
+        sent_messages.append((chat_id, message))
+
+    monkeypatch.setattr(webhook_service.quota_service, "get_monthly_quota_status", get_status)
+    monkeypatch.setattr(webhook_service.telegram_service, "send_message", send_message)
+
+    result = await webhook_service._handle_telegram_webhook_data(
+        {"message": {"chat": {"id": 123}, "text": "/limit"}}
+    )
+
+    assert result == {"ok": True}
+    assert sent_messages == [
+        (
+            123,
+            "Monthly usage for June 2026\n\n"
+            "Used: 25 MB\n"
+            "Limit: 100 MB\n"
+            "Remaining: 75 MB\n"
+            "Files processed: 3",
+        )
+    ]
+
+
+@pytest.mark.anyio
+async def test_limit_command_error_is_non_blocking(webhook_service, monkeypatch):
+    sent_messages = []
+
+    async def get_status(_chat_id):
+        raise RuntimeError("usage table unavailable")
+
+    async def send_message(chat_id, message):
+        sent_messages.append((chat_id, message))
+
+    monkeypatch.setattr(webhook_service.quota_service, "get_monthly_quota_status", get_status)
+    monkeypatch.setattr(webhook_service.telegram_service, "send_message", send_message)
+
+    result = await webhook_service._handle_telegram_webhook_data(
+        {"message": {"chat": {"id": 123}, "text": "/limit"}}
+    )
+
+    assert result == {"ok": True}
+    assert sent_messages == [
+        (123, "Sorry, I couldn't load your monthly usage right now. Please try again later.")
+    ]

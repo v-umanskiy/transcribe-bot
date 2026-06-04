@@ -8,7 +8,7 @@ from . import sqs_service
 from . import whisper_service
 from . import gemini_service
 from . import quota_service
-from utils import text_utils, audio_utils
+from utils import text_utils, audio_utils, quota_formatting
 
 
 async def handle_telegram_webhook_data(data: dict) -> dict:
@@ -63,6 +63,18 @@ async def _record_usage_observe(chat_id: int | str, file_bytes: bytes, file_ext:
         )
 
 
+async def _handle_limit_command(chat_id: int | str) -> dict:
+    try:
+        status = await quota_service.get_monthly_quota_status(str(chat_id))
+        message = quota_formatting.format_quota_status(status)
+    except Exception as exc:
+        print("LIMIT_COMMAND_ERROR", {"chat_id": str(chat_id), "error": repr(exc)})
+        message = "Sorry, I couldn't load your monthly usage right now. Please try again later."
+
+    await telegram_service.send_message(chat_id, message)
+    return {"ok": True}
+
+
 async def _process_whisper_text(chat_id: str, transcript_text: str) -> dict:
     refined = await gemini_service.refine_text(transcript_text)
     refined = refined.strip() or transcript_text
@@ -95,6 +107,9 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
     document = message.get("document")
     audio = message.get("audio")
     text = message.get("text") or ""
+
+    if text.strip().lower() == "/limit":
+        return await _handle_limit_command(chat_id)
 
     if text_utils.looks_like_drive_link(text):
         return await _schedule_google_drive_download(chat_id, text)
