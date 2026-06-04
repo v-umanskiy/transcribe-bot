@@ -11,6 +11,7 @@ REFINE_SYSTEM_PROMPT = (
 )
 
 RETENTION_DAYS = 60
+MONTHLY_QUOTA_BYTES = 100 * 1024 * 1024
 
 DRIVE_DOWNLOAD_FAILED_MESSAGE = (
     "Couldn't download the file. Please check the link is public and try again."
