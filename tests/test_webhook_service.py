@@ -44,3 +44,27 @@ def test_should_use_whisper_rejects_large_file(webhook_service):
 
 def test_should_use_whisper_accepts_missing_size_with_supported_ext(webhook_service):
     assert webhook_service._should_use_whisper(30, None, ".WAV") is True
+
+
+@pytest.mark.anyio
+async def test_record_usage_observe_records_downloaded_bytes(webhook_service, monkeypatch):
+    calls = []
+
+    async def record(chat_id, bytes_count, **kwargs):
+        calls.append((chat_id, bytes_count, kwargs))
+
+    monkeypatch.setattr(webhook_service.quota_service, "record_monthly_bytes", record)
+
+    await webhook_service._record_usage_observe(123, b"abc", "ogg")
+
+    assert calls == [("123", 3, {"source": "telegram", "file_ext": "ogg"})]
+
+
+@pytest.mark.anyio
+async def test_record_usage_observe_does_not_block_on_error(webhook_service, monkeypatch):
+    async def record(*_args, **_kwargs):
+        raise RuntimeError("usage table unavailable")
+
+    monkeypatch.setattr(webhook_service.quota_service, "record_monthly_bytes", record)
+
+    await webhook_service._record_usage_observe(123, b"abc", "ogg")

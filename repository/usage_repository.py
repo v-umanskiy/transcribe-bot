@@ -17,11 +17,58 @@ async def get_monthly_usage(chat_id: str, month: str) -> dict | None:
     return await asyncio.to_thread(_get)
 
 
+async def record_monthly_bytes(
+    chat_id: str,
+    month: str,
+    bytes_count: int,
+    limit_bytes: int,
+    quota_policy_version: str,
+) -> dict:
+    if bytes_count < 0:
+        raise ValueError("bytes_count must be non-negative")
+    if limit_bytes < 0:
+        raise ValueError("limit_bytes must be non-negative")
+
+    now = int(time.time())
+
+    def _update():
+        resp = usage_table.update_item(
+            Key={"chat_id": str(chat_id), "month": month},
+            UpdateExpression=(
+                "SET #updated_at = :now, "
+                "#created_at = if_not_exists(#created_at, :now), "
+                "#limit_bytes = if_not_exists(#limit_bytes, :limit_bytes), "
+                "#quota_policy_version = if_not_exists(#quota_policy_version, :quota_policy_version) "
+                "ADD #used_bytes :bytes_count, #job_count :one"
+            ),
+            ExpressionAttributeNames={
+                "#created_at": "created_at",
+                "#updated_at": "updated_at",
+                "#limit_bytes": "limit_bytes",
+                "#quota_policy_version": "quota_policy_version",
+                "#used_bytes": "used_bytes",
+                "#job_count": "job_count",
+            },
+            ExpressionAttributeValues={
+                ":now": now,
+                ":bytes_count": int(bytes_count),
+                ":limit_bytes": int(limit_bytes),
+                ":quota_policy_version": quota_policy_version,
+                ":one": 1,
+            },
+            ReturnValues="ALL_NEW",
+        )
+        return resp.get("Attributes") or {}
+
+    return await asyncio.to_thread(_update)
+
+
 async def try_consume_monthly_bytes(
     chat_id: str,
     month: str,
     bytes_count: int,
     limit_bytes: int,
+    quota_policy_version: str,
 ) -> dict | None:
     if bytes_count < 0:
         raise ValueError("bytes_count must be non-negative")
@@ -38,13 +85,18 @@ async def try_consume_monthly_bytes(
             resp = usage_table.update_item(
                 Key={"chat_id": str(chat_id), "month": month},
                 UpdateExpression=(
-                    "SET #updated_at = :now, #created_at = if_not_exists(#created_at, :now) "
+                    "SET #updated_at = :now, "
+                    "#created_at = if_not_exists(#created_at, :now), "
+                    "#limit_bytes = if_not_exists(#limit_bytes, :limit_bytes), "
+                    "#quota_policy_version = if_not_exists(#quota_policy_version, :quota_policy_version) "
                     "ADD #used_bytes :bytes_count, #job_count :one"
                 ),
                 ConditionExpression="attribute_not_exists(#used_bytes) OR #used_bytes <= :remaining",
                 ExpressionAttributeNames={
                     "#created_at": "created_at",
                     "#updated_at": "updated_at",
+                    "#limit_bytes": "limit_bytes",
+                    "#quota_policy_version": "quota_policy_version",
                     "#used_bytes": "used_bytes",
                     "#job_count": "job_count",
                 },
@@ -52,6 +104,8 @@ async def try_consume_monthly_bytes(
                     ":now": now,
                     ":bytes_count": int(bytes_count),
                     ":remaining": int(remaining_before_update),
+                    ":limit_bytes": int(limit_bytes),
+                    ":quota_policy_version": quota_policy_version,
                     ":one": 1,
                 },
                 ReturnValues="ALL_NEW",

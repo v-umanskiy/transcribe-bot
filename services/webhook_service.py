@@ -7,6 +7,7 @@ from . import transcription_table_service
 from . import sqs_service
 from . import whisper_service
 from . import gemini_service
+from . import quota_service
 from utils import text_utils, audio_utils
 
 
@@ -40,6 +41,26 @@ async def _notify_file_too_large(chat_id):
         "This file is too large for Telegram downloads. "
         "Please share a public Google Drive link to the file.",
     )
+
+
+async def _record_usage_observe(chat_id: int | str, file_bytes: bytes, file_ext: str | None) -> None:
+    try:
+        await quota_service.record_monthly_bytes(
+            str(chat_id),
+            len(file_bytes),
+            source="telegram",
+            file_ext=file_ext,
+        )
+    except Exception as exc:
+        print(
+            "USAGE_RECORD_ERROR",
+            {
+                "chat_id": str(chat_id),
+                "source": "telegram",
+                "file_ext": file_ext,
+                "error": repr(exc),
+            },
+        )
 
 
 async def _process_whisper_text(chat_id: str, transcript_text: str) -> dict:
@@ -104,6 +125,8 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
     if not file_bytes:
         await telegram_service.send_message(chat_id, "Sorry, I couldn’t download your audio message")
         return {"ok": True}
+
+    await _record_usage_observe(chat_id, file_bytes, file_ext)
 
     file_url, _ = await s3_service.upload_file_to_s3(file_bytes, file_key)
     if not file_url:
