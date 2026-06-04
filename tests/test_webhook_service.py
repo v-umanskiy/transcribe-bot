@@ -202,9 +202,9 @@ async def test_limit_command_sends_quota_status(webhook_service, monkeypatch):
         (
             123,
             "Monthly usage for June 2026\n\n"
-            "Used: 25 MB\n"
-            "Limit: 100 MB\n"
-            "Remaining: 75 MB\n"
+            "Used: 25.0 MB\n"
+            "Limit: 100.0 MB\n"
+            "Remaining: 75.0 MB\n"
             "Files processed: 3",
         )
     ]

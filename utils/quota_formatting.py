@@ -26,6 +26,10 @@ def format_bytes_mb(bytes_count: int) -> str:
     return f"{mb:.1f} MB"
 
 
+def format_bytes_mb_precise(bytes_count: int) -> str:
+    return f"{bytes_count / (1024 * 1024):.1f} MB"
+
+
 def format_month(month: str) -> str:
     try:
         return datetime.strptime(month, "%Y-%m").strftime("%B %Y")
@@ -36,9 +40,9 @@ def format_month(month: str) -> str:
 def format_quota_status(status: QuotaStatus) -> str:
     return (
         f"Monthly usage for {format_month(status.month)}\n\n"
-        f"Used: {format_bytes_mb(status.used_bytes)}\n"
-        f"Limit: {format_bytes_mb(status.limit_bytes)}\n"
-        f"Remaining: {format_bytes_mb(status.remaining_bytes)}\n"
+        f"Used: {format_bytes_mb_precise(status.used_bytes)}\n"
+        f"Limit: {format_bytes_mb_precise(status.limit_bytes)}\n"
+        f"Remaining: {format_bytes_mb_precise(status.remaining_bytes)}\n"
         f"Files processed: {status.job_count}"
     )
 
@@ -46,8 +50,8 @@ def format_quota_status(status: QuotaStatus) -> str:
 def format_quota_exceeded(result: QuotaResult) -> str:
     return (
         "Monthly limit reached.\n\n"
-        f"Used: {format_bytes_mb(result.used_bytes)} / {format_bytes_mb(result.limit_bytes)}\n"
-        f"This file: {format_bytes_mb(result.requested_bytes)}\n"
-        f"Remaining: {format_bytes_mb(result.remaining_bytes)}\n\n"
+        f"Used: {format_bytes_mb_precise(result.used_bytes)} / {format_bytes_mb_precise(result.limit_bytes)}\n"
+        f"This file: {format_bytes_mb_precise(result.requested_bytes)}\n"
+        f"Remaining: {format_bytes_mb_precise(result.remaining_bytes)}\n\n"
         "Your quota resets next month."
     )

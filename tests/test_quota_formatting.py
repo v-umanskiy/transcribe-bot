@@ -26,6 +26,12 @@ def test_format_bytes_mb():
     assert quota_formatting.format_bytes_mb(10 * 1024 * 1024) == "10 MB"
 
 
+def test_format_bytes_mb_precise():
+    assert quota_formatting.format_bytes_mb_precise(0) == "0.0 MB"
+    assert quota_formatting.format_bytes_mb_precise(512 * 1024) == "0.5 MB"
+    assert quota_formatting.format_bytes_mb_precise(10 * 1024 * 1024) == "10.0 MB"
+
+
 def test_format_quota_status():
     status = _Status(
         month="2026-06",
@@ -37,9 +43,9 @@ def test_format_quota_status():
 
     assert quota_formatting.format_quota_status(status) == (
         "Monthly usage for June 2026\n\n"
-        "Used: 25 MB\n"
-        "Limit: 100 MB\n"
-        "Remaining: 75 MB\n"
+        "Used: 25.0 MB\n"
+        "Limit: 100.0 MB\n"
+        "Remaining: 75.0 MB\n"
         "Files processed: 3"
     )
 
@@ -54,8 +60,8 @@ def test_format_quota_exceeded():
 
     assert quota_formatting.format_quota_exceeded(result) == (
         "Monthly limit reached.\n\n"
-        "Used: 95 MB / 100 MB\n"
-        "This file: 10 MB\n"
+        "Used: 95.0 MB / 100.0 MB\n"
+        "This file: 10.0 MB\n"
         "Remaining: 5.0 MB\n\n"
         "Your quota resets next month."
     )
