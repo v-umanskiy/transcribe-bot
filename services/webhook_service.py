@@ -43,17 +43,44 @@ async def _notify_file_too_large(chat_id):
     )
 
 
-async def _record_usage_observe(chat_id: int | str, file_bytes: bytes, file_ext: str | None) -> None:
+async def _consume_quota_or_notify(chat_id: int | str, file_bytes: bytes, file_ext: str | None) -> bool:
     try:
-        await quota_service.record_monthly_bytes(
+        result = await quota_service.try_consume_monthly_bytes(
             str(chat_id),
             len(file_bytes),
-            source="telegram",
-            file_ext=file_ext,
         )
+        if result.allowed:
+            print(
+                "QUOTA_BYTES_ACCEPTED",
+                {
+                    "chat_id": str(chat_id),
+                    "source": "telegram",
+                    "file_ext": file_ext,
+                    "bytes": len(file_bytes),
+                    "used_bytes": result.used_bytes,
+                    "limit_bytes": result.limit_bytes,
+                    "quota_policy_version": result.quota_policy_version,
+                },
+            )
+            return True
+
+        print(
+            "QUOTA_BYTES_REJECTED",
+            {
+                "chat_id": str(chat_id),
+                "source": "telegram",
+                "file_ext": file_ext,
+                "bytes": len(file_bytes),
+                "used_bytes": result.used_bytes,
+                "limit_bytes": result.limit_bytes,
+                "quota_policy_version": result.quota_policy_version,
+            },
+        )
+        await telegram_service.send_message(chat_id, quota_formatting.format_quota_exceeded(result))
+        return False
     except Exception as exc:
         print(
-            "USAGE_RECORD_ERROR",
+            "QUOTA_CHECK_ERROR",
             {
                 "chat_id": str(chat_id),
                 "source": "telegram",
@@ -61,6 +88,7 @@ async def _record_usage_observe(chat_id: int | str, file_bytes: bytes, file_ext:
                 "error": repr(exc),
             },
         )
+        return True
 
 
 async def _handle_limit_command(chat_id: int | str) -> dict:
@@ -149,7 +177,10 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         await telegram_service.send_message(chat_id, "Sorry, I couldn’t download your audio message")
         return {"ok": True}
 
-    await _record_usage_observe(chat_id, file_bytes, file_ext)
+    if not await _consume_quota_or_notify(chat_id, file_bytes, file_ext):
+        if status_message_id:
+            await telegram_service.delete_message(int(chat_id), int(status_message_id))
+        return {"ok": True}
 
     file_url, _ = await s3_service.upload_file_to_s3(file_bytes, file_key)
     if not file_url:

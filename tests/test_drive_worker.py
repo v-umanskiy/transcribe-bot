@@ -15,51 +15,98 @@ def drive_worker(monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_record_usage_observe_records_drive_downloaded_bytes(drive_worker, monkeypatch):
+async def test_consume_quota_allows_drive_downloaded_bytes(drive_worker, monkeypatch):
     calls = []
 
     async def get_job(job_id):
         assert job_id == "job-1"
         return {"chat_id": "123"}
 
-    async def record(chat_id, bytes_count, **kwargs):
-        calls.append((chat_id, bytes_count, kwargs))
+    async def consume(chat_id, bytes_count):
+        calls.append((chat_id, bytes_count))
+        return drive_worker.quota_service.MonthlyQuotaResult(
+            allowed=True,
+            chat_id=chat_id,
+            month="2026-06",
+            limit_bytes=100,
+            quota_policy_version="test-policy",
+            used_bytes=40,
+            requested_bytes=bytes_count,
+        )
 
     monkeypatch.setattr(drive_worker.transcription_table_service, "get_by_job_id", get_job)
-    monkeypatch.setattr(drive_worker.quota_service, "record_monthly_bytes", record)
+    monkeypatch.setattr(drive_worker.quota_service, "try_consume_monthly_bytes", consume)
 
-    await drive_worker._record_usage_observe("job-1", b"abcd", "mp3")
+    assert await drive_worker._consume_quota_or_update_status("job-1", b"abcd", "mp3") is True
 
-    assert calls == [("123", 4, {"source": "drive", "file_ext": "mp3"})]
+    assert calls == [("123", 4)]
 
 
 @pytest.mark.anyio
-async def test_record_usage_observe_skips_drive_usage_without_chat_id(drive_worker, monkeypatch):
+async def test_consume_quota_skips_drive_usage_without_chat_id(drive_worker, monkeypatch):
     calls = []
 
     async def get_job(_job_id):
         return None
 
-    async def record(*args, **kwargs):
+    async def consume(*args, **kwargs):
         calls.append((args, kwargs))
 
     monkeypatch.setattr(drive_worker.transcription_table_service, "get_by_job_id", get_job)
-    monkeypatch.setattr(drive_worker.quota_service, "record_monthly_bytes", record)
+    monkeypatch.setattr(drive_worker.quota_service, "try_consume_monthly_bytes", consume)
 
-    await drive_worker._record_usage_observe("job-1", b"abcd", "mp3")
+    assert await drive_worker._consume_quota_or_update_status("job-1", b"abcd", "mp3") is True
 
     assert calls == []
 
 
 @pytest.mark.anyio
-async def test_record_usage_observe_does_not_block_drive_on_error(drive_worker, monkeypatch):
+async def test_consume_quota_does_not_block_drive_on_error(drive_worker, monkeypatch):
     async def get_job(_job_id):
         return {"chat_id": "123"}
 
-    async def record(*_args, **_kwargs):
+    async def consume(*_args, **_kwargs):
         raise RuntimeError("usage table unavailable")
 
     monkeypatch.setattr(drive_worker.transcription_table_service, "get_by_job_id", get_job)
-    monkeypatch.setattr(drive_worker.quota_service, "record_monthly_bytes", record)
+    monkeypatch.setattr(drive_worker.quota_service, "try_consume_monthly_bytes", consume)
 
-    await drive_worker._record_usage_observe("job-1", b"abcd", "mp3")
+    assert await drive_worker._consume_quota_or_update_status("job-1", b"abcd", "mp3") is True
+
+
+@pytest.mark.anyio
+async def test_consume_quota_rejects_drive_downloaded_bytes(drive_worker, monkeypatch):
+    statuses = []
+
+    async def get_job(_job_id):
+        return {"chat_id": "123"}
+
+    async def consume(chat_id, bytes_count):
+        return drive_worker.quota_service.MonthlyQuotaResult(
+            allowed=False,
+            chat_id=chat_id,
+            month="2026-06",
+            limit_bytes=100,
+            quota_policy_version="test-policy",
+            used_bytes=95,
+            requested_bytes=bytes_count,
+        )
+
+    async def append_status(job_id, message):
+        statuses.append((job_id, message))
+
+    monkeypatch.setattr(drive_worker.transcription_table_service, "get_by_job_id", get_job)
+    monkeypatch.setattr(drive_worker.quota_service, "try_consume_monthly_bytes", consume)
+    monkeypatch.setattr(drive_worker, "_append_status", append_status)
+
+    assert await drive_worker._consume_quota_or_update_status("job-1", b"abcd", "mp3") is False
+    assert statuses == [
+        (
+            "job-1",
+            "Monthly limit reached.\n\n"
+            "Used: 0.0 MB / 0.0 MB\n"
+            "This file: 0.0 MB\n"
+            "Remaining: 0.0 MB\n\n"
+            "Your quota resets next month.",
+        )
+    ]

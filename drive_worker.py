@@ -7,6 +7,7 @@ from services import transcription_aws_service
 from services import transcription_table_service
 from services import telegram_service
 from services import quota_service
+from utils import quota_formatting
 from utils.constants import DRIVE_DOWNLOAD_FAILED_MESSAGE, DRIVE_FILE_TOO_LARGE_MESSAGE
 
 MAX_DRIVE_FILE_BYTES = 70 * 1024 * 1024
@@ -70,7 +71,8 @@ async def _handle_records(records: list[dict]):
         media_format, file_ext = drive_info
         file_key = f"audiofiles/drive-{file_id}.{file_ext}"
 
-        await _record_usage_observe(job_id, file_bytes, file_ext)
+        if not await _consume_quota_or_update_status(job_id, file_bytes, file_ext):
+            continue
 
         file_url, _ = await s3_service.upload_file_to_s3(file_bytes, file_key)
         if not file_url:
@@ -94,12 +96,12 @@ def _extract_drive_file_info(file_name: str) -> tuple[str, str] | None:
     return supported[ext], ext
 
 
-async def _record_usage_observe(job_id: str, file_bytes: bytes, file_ext: str | None) -> None:
+async def _consume_quota_or_update_status(job_id: str, file_bytes: bytes, file_ext: str | None) -> bool:
     try:
         job = await transcription_table_service.get_by_job_id(job_id)
         if not job or not job.get("chat_id"):
             print(
-                "USAGE_RECORD_SKIPPED",
+                "QUOTA_CHECK_SKIPPED",
                 {
                     "job_id": job_id,
                     "source": "drive",
@@ -107,17 +109,46 @@ async def _record_usage_observe(job_id: str, file_bytes: bytes, file_ext: str | 
                     "reason": "missing_job_chat_id",
                 },
             )
-            return
+            return True
 
-        await quota_service.record_monthly_bytes(
+        result = await quota_service.try_consume_monthly_bytes(
             str(job["chat_id"]),
             len(file_bytes),
-            source="drive",
-            file_ext=file_ext,
         )
+        if result.allowed:
+            print(
+                "QUOTA_BYTES_ACCEPTED",
+                {
+                    "job_id": job_id,
+                    "chat_id": str(job["chat_id"]),
+                    "source": "drive",
+                    "file_ext": file_ext,
+                    "bytes": len(file_bytes),
+                    "used_bytes": result.used_bytes,
+                    "limit_bytes": result.limit_bytes,
+                    "quota_policy_version": result.quota_policy_version,
+                },
+            )
+            return True
+
+        print(
+            "QUOTA_BYTES_REJECTED",
+            {
+                "job_id": job_id,
+                "chat_id": str(job["chat_id"]),
+                "source": "drive",
+                "file_ext": file_ext,
+                "bytes": len(file_bytes),
+                "used_bytes": result.used_bytes,
+                "limit_bytes": result.limit_bytes,
+                "quota_policy_version": result.quota_policy_version,
+            },
+        )
+        await _append_status(job_id, quota_formatting.format_quota_exceeded(result))
+        return False
     except Exception as exc:
         print(
-            "USAGE_RECORD_ERROR",
+            "QUOTA_CHECK_ERROR",
             {
                 "job_id": job_id,
                 "source": "drive",
@@ -125,6 +156,7 @@ async def _record_usage_observe(job_id: str, file_bytes: bytes, file_ext: str | 
                 "error": repr(exc),
             },
         )
+        return True
 
 
 async def _append_status(job_id: str, message: str) -> None:

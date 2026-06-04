@@ -47,27 +47,69 @@ def test_should_use_whisper_accepts_missing_size_with_supported_ext(webhook_serv
 
 
 @pytest.mark.anyio
-async def test_record_usage_observe_records_downloaded_bytes(webhook_service, monkeypatch):
+async def test_consume_quota_allows_downloaded_bytes(webhook_service, monkeypatch):
     calls = []
 
-    async def record(chat_id, bytes_count, **kwargs):
-        calls.append((chat_id, bytes_count, kwargs))
+    async def consume(chat_id, bytes_count):
+        calls.append((chat_id, bytes_count))
+        return webhook_service.quota_service.MonthlyQuotaResult(
+            allowed=True,
+            chat_id=chat_id,
+            month="2026-06",
+            limit_bytes=100,
+            quota_policy_version="test-policy",
+            used_bytes=40,
+            requested_bytes=bytes_count,
+        )
 
-    monkeypatch.setattr(webhook_service.quota_service, "record_monthly_bytes", record)
+    monkeypatch.setattr(webhook_service.quota_service, "try_consume_monthly_bytes", consume)
 
-    await webhook_service._record_usage_observe(123, b"abc", "ogg")
-
-    assert calls == [("123", 3, {"source": "telegram", "file_ext": "ogg"})]
+    assert await webhook_service._consume_quota_or_notify(123, b"abc", "ogg") is True
+    assert calls == [("123", 3)]
 
 
 @pytest.mark.anyio
-async def test_record_usage_observe_does_not_block_on_error(webhook_service, monkeypatch):
-    async def record(*_args, **_kwargs):
+async def test_consume_quota_rejects_downloaded_bytes(webhook_service, monkeypatch):
+    sent_messages = []
+
+    async def consume(chat_id, bytes_count):
+        return webhook_service.quota_service.MonthlyQuotaResult(
+            allowed=False,
+            chat_id=chat_id,
+            month="2026-06",
+            limit_bytes=100,
+            quota_policy_version="test-policy",
+            used_bytes=95,
+            requested_bytes=bytes_count,
+        )
+
+    async def send_message(chat_id, message):
+        sent_messages.append((chat_id, message))
+
+    monkeypatch.setattr(webhook_service.quota_service, "try_consume_monthly_bytes", consume)
+    monkeypatch.setattr(webhook_service.telegram_service, "send_message", send_message)
+
+    assert await webhook_service._consume_quota_or_notify(123, b"abcdef", "ogg") is False
+    assert sent_messages == [
+        (
+            123,
+            "Monthly limit reached.\n\n"
+            "Used: 0.0 MB / 0.0 MB\n"
+            "This file: 0.0 MB\n"
+            "Remaining: 0.0 MB\n\n"
+            "Your quota resets next month.",
+        )
+    ]
+
+
+@pytest.mark.anyio
+async def test_consume_quota_fails_open_on_error(webhook_service, monkeypatch):
+    async def consume(*_args, **_kwargs):
         raise RuntimeError("usage table unavailable")
 
-    monkeypatch.setattr(webhook_service.quota_service, "record_monthly_bytes", record)
+    monkeypatch.setattr(webhook_service.quota_service, "try_consume_monthly_bytes", consume)
 
-    await webhook_service._record_usage_observe(123, b"abc", "ogg")
+    assert await webhook_service._consume_quota_or_notify(123, b"abc", "ogg") is True
 
 
 @pytest.mark.anyio
