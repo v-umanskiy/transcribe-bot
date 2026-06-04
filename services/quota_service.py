@@ -75,6 +75,11 @@ async def get_monthly_quota_status(chat_id: str, month: str | None = None) -> Mo
     )
 
 
+async def get_current_quota_label(chat_id: str) -> str:
+    status = await get_monthly_quota_status(chat_id)
+    return status.quota_label
+
+
 async def record_monthly_bytes(
     chat_id: str,
     bytes_count: int,

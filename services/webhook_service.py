@@ -9,6 +9,7 @@ from . import whisper_service
 from . import gemini_service
 from . import quota_service
 from utils import text_utils, audio_utils, quota_formatting
+from utils.constants import LIMIT_LOAD_FAILED_MESSAGE, START_MESSAGE_TEMPLATE
 
 
 async def handle_telegram_webhook_data(data: dict) -> dict:
@@ -97,14 +98,30 @@ async def _handle_limit_command(chat_id: int | str) -> dict:
         message = quota_formatting.format_quota_status(status)
     except Exception as exc:
         print("LIMIT_COMMAND_ERROR", {"chat_id": str(chat_id), "error": repr(exc)})
-        message = "Sorry, I couldn't load your monthly usage right now. Please try again later."
+        message = LIMIT_LOAD_FAILED_MESSAGE
 
     await telegram_service.send_message(chat_id, message)
     return {"ok": True}
 
 
+async def _handle_start_command(chat_id: int | str) -> dict:
+    try:
+        quota_label = await quota_service.get_current_quota_label(str(chat_id))
+    except Exception as exc:
+        print("START_COMMAND_QUOTA_ERROR", {"chat_id": str(chat_id), "error": repr(exc)})
+        quota_label = quota_service.configured_quota_label()
+
+    await telegram_service.send_message(
+        chat_id,
+        START_MESSAGE_TEMPLATE.format(quota_label=quota_label),
+    )
+    return {"ok": True}
+
+
 async def _handle_command(chat_id: int | str, text: str) -> dict | None:
     command = text.strip().lower()
+    if command == "/start":
+        return await _handle_start_command(chat_id)
     if command == "/limit":
         return await _handle_limit_command(chat_id)
     return None

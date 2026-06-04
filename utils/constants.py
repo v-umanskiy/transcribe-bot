@@ -14,6 +14,17 @@ RETENTION_DAYS = 60
 MONTHLY_QUOTA_BYTES = 100 * 1024 * 1024
 MONTHLY_QUOTA_LABEL = "100 MB"
 
+START_MESSAGE_TEMPLATE = (
+    "Send me a voice message, audio file, or public Google Drive audio link "
+    "and I'll transcribe it.\n\n"
+    "Free monthly limit: {quota_label} of audio.\n"
+    "Use /limit to check your remaining quota."
+)
+
+LIMIT_LOAD_FAILED_MESSAGE = (
+    "Sorry, I couldn't load your monthly usage right now. Please try again later."
+)
+
 DRIVE_DOWNLOAD_FAILED_MESSAGE = (
     "Couldn't download the file. Please check the link is public and try again."
 )

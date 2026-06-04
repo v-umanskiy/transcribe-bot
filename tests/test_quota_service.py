@@ -49,6 +49,22 @@ async def test_get_monthly_quota_status_uses_persisted_usage(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_get_current_quota_label_uses_current_status(monkeypatch):
+    async def get_usage(chat_id, month):
+        assert chat_id == "123"
+        return {
+            "used_bytes": 25,
+            "job_count": 2,
+            "limit_bytes": 100,
+            "quota_label": "persisted-label",
+        }
+
+    monkeypatch.setattr(quota_service.usage_repository, "get_monthly_usage", get_usage)
+
+    assert await quota_service.get_current_quota_label("123") == "persisted-label"
+
+
+@pytest.mark.anyio
 async def test_record_monthly_bytes_reports_updated_usage(monkeypatch):
     async def record(chat_id, month, bytes_count, limit_bytes, quota_label):
         assert chat_id == "123"
