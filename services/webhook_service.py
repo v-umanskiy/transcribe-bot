@@ -75,6 +75,13 @@ async def _handle_limit_command(chat_id: int | str) -> dict:
     return {"ok": True}
 
 
+async def _handle_command(chat_id: int | str, text: str) -> dict | None:
+    command = text.strip().lower()
+    if command == "/limit":
+        return await _handle_limit_command(chat_id)
+    return None
+
+
 async def _process_whisper_text(chat_id: str, transcript_text: str) -> dict:
     refined = await gemini_service.refine_text(transcript_text)
     refined = refined.strip() or transcript_text
@@ -108,8 +115,9 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
     audio = message.get("audio")
     text = message.get("text") or ""
 
-    if text.strip().lower() == "/limit":
-        return await _handle_limit_command(chat_id)
+    command_result = await _handle_command(chat_id, text)
+    if command_result is not None:
+        return command_result
 
     if text_utils.looks_like_drive_link(text):
         return await _schedule_google_drive_download(chat_id, text)

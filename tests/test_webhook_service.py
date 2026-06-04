@@ -71,6 +71,11 @@ async def test_record_usage_observe_does_not_block_on_error(webhook_service, mon
 
 
 @pytest.mark.anyio
+async def test_handle_command_ignores_non_commands(webhook_service):
+    assert await webhook_service._handle_command(123, "hello") is None
+
+
+@pytest.mark.anyio
 async def test_limit_command_sends_quota_status(webhook_service, monkeypatch):
     sent_messages = []
 
