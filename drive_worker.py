@@ -144,7 +144,7 @@ async def _consume_quota_or_update_status(job_id: str, file_bytes: bytes, file_e
                 "quota_policy_version": result.quota_policy_version,
             },
         )
-        await _append_status(job_id, quota_formatting.format_quota_exceeded(result))
+        await _replace_status(job_id, quota_formatting.format_quota_exceeded(result))
         return False
     except Exception as exc:
         print(
@@ -178,3 +178,22 @@ async def _append_status(job_id: str, message: str) -> None:
         await telegram_service.edit_message_text(int(chat_id), int(message_id), new_log)
     except Exception as exc:
         print("STATUS_EDIT_ERROR:", repr(exc))
+
+
+async def _replace_status(job_id: str, message: str) -> None:
+    job = await transcription_table_service.get_by_job_id(job_id)
+    if not job:
+        return
+
+    chat_id = job.get("chat_id")
+    message_id = job.get("status_message_id")
+    if not chat_id or not message_id:
+        return
+
+    if not transcription_table_service.update_status_log(job_id, message):
+        return
+
+    try:
+        await telegram_service.edit_message_text(int(chat_id), int(message_id), message)
+    except Exception as exc:
+        print("STATUS_REPLACE_ERROR:", repr(exc))

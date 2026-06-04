@@ -92,12 +92,12 @@ async def test_consume_quota_rejects_drive_downloaded_bytes(drive_worker, monkey
             requested_bytes=bytes_count,
         )
 
-    async def append_status(job_id, message):
+    async def replace_status(job_id, message):
         statuses.append((job_id, message))
 
     monkeypatch.setattr(drive_worker.transcription_table_service, "get_by_job_id", get_job)
     monkeypatch.setattr(drive_worker.quota_service, "try_consume_monthly_bytes", consume)
-    monkeypatch.setattr(drive_worker, "_append_status", append_status)
+    monkeypatch.setattr(drive_worker, "_replace_status", replace_status)
 
     assert await drive_worker._consume_quota_or_update_status("job-1", b"abcd", "mp3") is False
     assert statuses == [
@@ -110,3 +110,29 @@ async def test_consume_quota_rejects_drive_downloaded_bytes(drive_worker, monkey
             "Your quota resets next month.",
         )
     ]
+
+
+@pytest.mark.anyio
+async def test_replace_status_overwrites_status_log_and_message(drive_worker, monkeypatch):
+    updates = []
+    edits = []
+
+    async def get_job(job_id):
+        assert job_id == "job-1"
+        return {"chat_id": "123", "status_message_id": "456", "status_log": "Old status"}
+
+    async def edit_message_text(chat_id, message_id, message):
+        edits.append((chat_id, message_id, message))
+
+    monkeypatch.setattr(drive_worker.transcription_table_service, "get_by_job_id", get_job)
+    monkeypatch.setattr(
+        drive_worker.transcription_table_service,
+        "update_status_log",
+        lambda job_id, message: updates.append((job_id, message)) or True,
+    )
+    monkeypatch.setattr(drive_worker.telegram_service, "edit_message_text", edit_message_text)
+
+    await drive_worker._replace_status("job-1", "New status")
+
+    assert updates == [("job-1", "New status")]
+    assert edits == [(123, 456, "New status")]
