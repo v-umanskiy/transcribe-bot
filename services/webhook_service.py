@@ -59,7 +59,7 @@ async def _consume_quota_or_notify(chat_id: int | str, file_bytes: bytes, file_e
                     "bytes": len(file_bytes),
                     "used_bytes": result.used_bytes,
                     "limit_bytes": result.limit_bytes,
-                    "quota_policy_version": result.quota_policy_version,
+                    "quota_label": result.quota_label,
                 },
             )
             return True
@@ -73,7 +73,7 @@ async def _consume_quota_or_notify(chat_id: int | str, file_bytes: bytes, file_e
                 "bytes": len(file_bytes),
                 "used_bytes": result.used_bytes,
                 "limit_bytes": result.limit_bytes,
-                "quota_policy_version": result.quota_policy_version,
+                "quota_label": result.quota_label,
             },
         )
         await telegram_service.send_message(chat_id, quota_formatting.format_quota_exceeded(result))

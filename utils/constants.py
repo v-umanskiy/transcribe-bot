@@ -12,7 +12,7 @@ REFINE_SYSTEM_PROMPT = (
 
 RETENTION_DAYS = 60
 MONTHLY_QUOTA_BYTES = 100 * 1024 * 1024
-MONTHLY_QUOTA_POLICY_VERSION = "2026-06-100mb"
+MONTHLY_QUOTA_LABEL = "100 MB"
 
 DRIVE_DOWNLOAD_FAILED_MESSAGE = (
     "Couldn't download the file. Please check the link is public and try again."

@@ -57,7 +57,7 @@ async def test_consume_quota_allows_downloaded_bytes(webhook_service, monkeypatc
             chat_id=chat_id,
             month="2026-06",
             limit_bytes=100,
-            quota_policy_version="test-policy",
+            quota_label="test-label",
             used_bytes=40,
             requested_bytes=bytes_count,
         )
@@ -78,7 +78,7 @@ async def test_consume_quota_rejects_downloaded_bytes(webhook_service, monkeypat
             chat_id=chat_id,
             month="2026-06",
             limit_bytes=100,
-            quota_policy_version="test-policy",
+            quota_label="test-label",
             used_bytes=95,
             requested_bytes=bytes_count,
         )
@@ -127,7 +127,7 @@ async def test_limit_command_sends_quota_status(webhook_service, monkeypatch):
             chat_id=chat_id,
             month="2026-06",
             limit_bytes=100 * 1024 * 1024,
-            quota_policy_version="test-policy",
+            quota_label="test-label",
             used_bytes=25 * 1024 * 1024,
             job_count=3,
         )

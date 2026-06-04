@@ -23,7 +23,7 @@ async def test_get_monthly_quota_status_defaults_when_no_usage(monkeypatch):
     assert status.used_bytes == 0
     assert status.job_count == 0
     assert status.limit_bytes == quota_service.MONTHLY_QUOTA_BYTES
-    assert status.quota_policy_version == quota_service.MONTHLY_QUOTA_POLICY_VERSION
+    assert status.quota_label == quota_service.MONTHLY_QUOTA_LABEL
 
 
 @pytest.mark.anyio
@@ -35,7 +35,7 @@ async def test_get_monthly_quota_status_uses_persisted_usage(monkeypatch):
             "used_bytes": 25,
             "job_count": 2,
             "limit_bytes": 100,
-            "quota_policy_version": "persisted-policy",
+            "quota_label": "persisted-label",
         }
 
     monkeypatch.setattr(quota_service.usage_repository, "get_monthly_usage", get_usage)
@@ -45,22 +45,22 @@ async def test_get_monthly_quota_status_uses_persisted_usage(monkeypatch):
     assert status.used_bytes == 25
     assert status.job_count == 2
     assert status.limit_bytes == 100
-    assert status.quota_policy_version == "persisted-policy"
+    assert status.quota_label == "persisted-label"
 
 
 @pytest.mark.anyio
 async def test_record_monthly_bytes_reports_updated_usage(monkeypatch):
-    async def record(chat_id, month, bytes_count, limit_bytes, quota_policy_version):
+    async def record(chat_id, month, bytes_count, limit_bytes, quota_label):
         assert chat_id == "123"
         assert month == "2026-06"
         assert bytes_count == 10
         assert limit_bytes == quota_service.MONTHLY_QUOTA_BYTES
-        assert quota_policy_version == quota_service.MONTHLY_QUOTA_POLICY_VERSION
+        assert quota_label == quota_service.MONTHLY_QUOTA_LABEL
         return {
             "used_bytes": 40,
             "job_count": 3,
             "limit_bytes": limit_bytes,
-            "quota_policy_version": quota_policy_version,
+            "quota_label": quota_label,
         }
 
     monkeypatch.setattr(quota_service.usage_repository, "record_monthly_bytes", record)
@@ -76,7 +76,7 @@ async def test_record_monthly_bytes_reports_updated_usage(monkeypatch):
     assert result.chat_id == "123"
     assert result.month == "2026-06"
     assert result.limit_bytes == quota_service.MONTHLY_QUOTA_BYTES
-    assert result.quota_policy_version == quota_service.MONTHLY_QUOTA_POLICY_VERSION
+    assert result.quota_label == quota_service.MONTHLY_QUOTA_LABEL
     assert result.used_bytes == 40
     assert result.recorded_bytes == 10
     assert result.job_count == 3
@@ -84,13 +84,13 @@ async def test_record_monthly_bytes_reports_updated_usage(monkeypatch):
 
 @pytest.mark.anyio
 async def test_try_consume_monthly_bytes_allows_and_reports_updated_usage(monkeypatch):
-    async def consume(chat_id, month, bytes_count, limit_bytes, quota_policy_version):
+    async def consume(chat_id, month, bytes_count, limit_bytes, quota_label):
         assert chat_id == "123"
         assert month == "2026-06"
         assert bytes_count == 10
         assert limit_bytes == 100
-        assert quota_policy_version == "test-policy"
-        return {"used_bytes": 40, "limit_bytes": 100, "quota_policy_version": "test-policy"}
+        assert quota_label == "test-label"
+        return {"used_bytes": 40, "limit_bytes": 100, "quota_label": "test-label"}
 
     async def get_usage(chat_id, month):
         assert chat_id == "123"
@@ -105,12 +105,12 @@ async def test_try_consume_monthly_bytes_allows_and_reports_updated_usage(monkey
         10,
         month="2026-06",
         limit_bytes=100,
-        quota_policy_version="test-policy",
+        quota_label="test-label",
     )
 
     assert result.allowed is True
     assert result.limit_bytes == 100
-    assert result.quota_policy_version == "test-policy"
+    assert result.quota_label == "test-label"
     assert result.used_bytes == 40
     assert result.remaining_bytes == 60
     assert result.requested_bytes == 10
@@ -121,15 +121,15 @@ async def test_try_consume_monthly_bytes_uses_existing_persisted_limit(monkeypat
     async def get_usage(chat_id, month):
         assert chat_id == "123"
         assert month == "2026-06"
-        return {"used_bytes": 40, "limit_bytes": 200, "quota_policy_version": "existing-policy"}
+        return {"used_bytes": 40, "limit_bytes": 200, "quota_label": "existing-label"}
 
-    async def consume(chat_id, month, bytes_count, limit_bytes, quota_policy_version):
+    async def consume(chat_id, month, bytes_count, limit_bytes, quota_label):
         assert chat_id == "123"
         assert month == "2026-06"
         assert bytes_count == 10
         assert limit_bytes == 200
-        assert quota_policy_version == "existing-policy"
-        return {"used_bytes": 50, "limit_bytes": 200, "quota_policy_version": "existing-policy"}
+        assert quota_label == "existing-label"
+        return {"used_bytes": 50, "limit_bytes": 200, "quota_label": "existing-label"}
 
     monkeypatch.setattr(quota_service.usage_repository, "get_monthly_usage", get_usage)
     monkeypatch.setattr(quota_service.usage_repository, "try_consume_monthly_bytes", consume)
@@ -139,12 +139,12 @@ async def test_try_consume_monthly_bytes_uses_existing_persisted_limit(monkeypat
         10,
         month="2026-06",
         limit_bytes=100,
-        quota_policy_version="new-policy",
+        quota_label="new-label",
     )
 
     assert result.allowed is True
     assert result.limit_bytes == 200
-    assert result.quota_policy_version == "existing-policy"
+    assert result.quota_label == "existing-label"
     assert result.used_bytes == 50
     assert result.remaining_bytes == 150
 
@@ -157,7 +157,7 @@ async def test_try_consume_monthly_bytes_rejects_and_reports_current_usage(monke
     async def get_usage(chat_id, month):
         assert chat_id == "123"
         assert month == "2026-06"
-        return {"used_bytes": 95, "limit_bytes": 100, "quota_policy_version": "test-policy"}
+        return {"used_bytes": 95, "limit_bytes": 100, "quota_label": "test-label"}
 
     monkeypatch.setattr(quota_service.usage_repository, "try_consume_monthly_bytes", consume)
     monkeypatch.setattr(quota_service.usage_repository, "get_monthly_usage", get_usage)
@@ -167,12 +167,12 @@ async def test_try_consume_monthly_bytes_rejects_and_reports_current_usage(monke
         10,
         month="2026-06",
         limit_bytes=100,
-        quota_policy_version="test-policy",
+        quota_label="test-label",
     )
 
     assert result.allowed is False
     assert result.limit_bytes == 100
-    assert result.quota_policy_version == "test-policy"
+    assert result.quota_label == "test-label"
     assert result.used_bytes == 95
     assert result.remaining_bytes == 5
     assert result.requested_bytes == 10

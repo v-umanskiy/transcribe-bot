@@ -29,7 +29,7 @@ async def test_consume_quota_allows_drive_downloaded_bytes(drive_worker, monkeyp
             chat_id=chat_id,
             month="2026-06",
             limit_bytes=100,
-            quota_policy_version="test-policy",
+            quota_label="test-label",
             used_bytes=40,
             requested_bytes=bytes_count,
         )
@@ -87,7 +87,7 @@ async def test_consume_quota_rejects_drive_downloaded_bytes(drive_worker, monkey
             chat_id=chat_id,
             month="2026-06",
             limit_bytes=100,
-            quota_policy_version="test-policy",
+            quota_label="test-label",
             used_bytes=95,
             requested_bytes=bytes_count,
         )

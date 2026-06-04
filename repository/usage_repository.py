@@ -22,7 +22,7 @@ async def record_monthly_bytes(
     month: str,
     bytes_count: int,
     limit_bytes: int,
-    quota_policy_version: str,
+    quota_label: str,
 ) -> dict:
     if bytes_count < 0:
         raise ValueError("bytes_count must be non-negative")
@@ -38,14 +38,14 @@ async def record_monthly_bytes(
                 "SET #updated_at = :now, "
                 "#created_at = if_not_exists(#created_at, :now), "
                 "#limit_bytes = if_not_exists(#limit_bytes, :limit_bytes), "
-                "#quota_policy_version = if_not_exists(#quota_policy_version, :quota_policy_version) "
+                "#quota_label = if_not_exists(#quota_label, :quota_label) "
                 "ADD #used_bytes :bytes_count, #job_count :one"
             ),
             ExpressionAttributeNames={
                 "#created_at": "created_at",
                 "#updated_at": "updated_at",
                 "#limit_bytes": "limit_bytes",
-                "#quota_policy_version": "quota_policy_version",
+                "#quota_label": "quota_label",
                 "#used_bytes": "used_bytes",
                 "#job_count": "job_count",
             },
@@ -53,7 +53,7 @@ async def record_monthly_bytes(
                 ":now": now,
                 ":bytes_count": int(bytes_count),
                 ":limit_bytes": int(limit_bytes),
-                ":quota_policy_version": quota_policy_version,
+                ":quota_label": quota_label,
                 ":one": 1,
             },
             ReturnValues="ALL_NEW",
@@ -68,7 +68,7 @@ async def try_consume_monthly_bytes(
     month: str,
     bytes_count: int,
     limit_bytes: int,
-    quota_policy_version: str,
+    quota_label: str,
 ) -> dict | None:
     if bytes_count < 0:
         raise ValueError("bytes_count must be non-negative")
@@ -88,7 +88,7 @@ async def try_consume_monthly_bytes(
                     "SET #updated_at = :now, "
                     "#created_at = if_not_exists(#created_at, :now), "
                     "#limit_bytes = if_not_exists(#limit_bytes, :limit_bytes), "
-                    "#quota_policy_version = if_not_exists(#quota_policy_version, :quota_policy_version) "
+                    "#quota_label = if_not_exists(#quota_label, :quota_label) "
                     "ADD #used_bytes :bytes_count, #job_count :one"
                 ),
                 ConditionExpression="attribute_not_exists(#used_bytes) OR #used_bytes <= :remaining",
@@ -96,7 +96,7 @@ async def try_consume_monthly_bytes(
                     "#created_at": "created_at",
                     "#updated_at": "updated_at",
                     "#limit_bytes": "limit_bytes",
-                    "#quota_policy_version": "quota_policy_version",
+                    "#quota_label": "quota_label",
                     "#used_bytes": "used_bytes",
                     "#job_count": "job_count",
                 },
@@ -105,7 +105,7 @@ async def try_consume_monthly_bytes(
                     ":bytes_count": int(bytes_count),
                     ":remaining": int(remaining_before_update),
                     ":limit_bytes": int(limit_bytes),
-                    ":quota_policy_version": quota_policy_version,
+                    ":quota_label": quota_label,
                     ":one": 1,
                 },
                 ReturnValues="ALL_NEW",
