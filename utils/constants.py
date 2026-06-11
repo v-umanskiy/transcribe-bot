@@ -11,8 +11,8 @@ REFINE_SYSTEM_PROMPT = (
 )
 
 RETENTION_DAYS = 60
-MONTHLY_QUOTA_BYTES = 100 * 1024 * 1024
-MONTHLY_QUOTA_LABEL = "100 MB"
+MONTHLY_QUOTA_BYTES = 30 * 1024 * 1024
+MONTHLY_QUOTA_LABEL = "30 MB"
 
 START_MESSAGE_TEMPLATE = (
     "Send me a voice message, audio file, or public Google Drive audio link "
