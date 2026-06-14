@@ -3,6 +3,7 @@
 import argparse
 import os
 import sys
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -12,6 +13,7 @@ from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError, 
 
 
 DEFAULT_TABLE_NAME = "transcribe_bot_usage_prod"
+DEFAULT_CHUNKS_TABLE_NAME = "transcribe_bot_chunks_prod"
 DEFAULT_REGION = "eu-west-1"
 BYTES_PER_MB = 1024 * 1024
 
@@ -28,6 +30,11 @@ def parse_args() -> argparse.Namespace:
         "--table",
         default=os.getenv("USAGE_TABLE_NAME", DEFAULT_TABLE_NAME),
         help=f"DynamoDB table name. Defaults to {DEFAULT_TABLE_NAME}.",
+    )
+    parser.add_argument(
+        "--chunks-table",
+        default=os.getenv("CHUNKS_TABLE_NAME", DEFAULT_CHUNKS_TABLE_NAME),
+        help=f"Chunks DynamoDB table name. Defaults to {DEFAULT_CHUNKS_TABLE_NAME}.",
     )
     parser.add_argument(
         "--region",
@@ -74,6 +81,40 @@ def load_usage(table, month: str) -> list[dict]:
         request["ExclusiveStartKey"] = last_key
 
 
+def month_timestamp_bounds(month: str) -> tuple[int, int]:
+    start = datetime.strptime(month, "%Y-%m").replace(tzinfo=UTC)
+    if start.month == 12:
+        end = start.replace(year=start.year + 1, month=1)
+    else:
+        end = start.replace(month=start.month + 1)
+    return int(start.timestamp()), int(end.timestamp())
+
+
+def load_chunk_languages(table, month: str) -> list[dict]:
+    start, end = month_timestamp_bounds(month)
+    items = []
+    request = {
+        "FilterExpression": (
+            Attr("created_at").gte(start)
+            & Attr("created_at").lt(end)
+            & Attr("language").exists()
+        ),
+        "ProjectionExpression": "#chat_id, #created_at, #language",
+        "ExpressionAttributeNames": {
+            "#chat_id": "chat_id",
+            "#created_at": "created_at",
+            "#language": "language",
+        },
+    }
+    while True:
+        response = table.scan(**request)
+        items.extend(response.get("Items") or [])
+        last_key = response.get("LastEvaluatedKey")
+        if not last_key:
+            return items
+        request["ExclusiveStartKey"] = last_key
+
+
 def as_int(value) -> int:
     if isinstance(value, Decimal):
         return int(value)
@@ -90,8 +131,29 @@ def format_updated_at(timestamp: int) -> str:
     return datetime.fromtimestamp(timestamp, UTC).strftime("%Y-%m-%d")
 
 
-def build_rows(items: list[dict]) -> list[list[str]]:
+def build_language_counts(items: list[dict]) -> dict[str, Counter]:
+    counts = defaultdict(Counter)
+    for item in items:
+        chat_id = str(item.get("chat_id") or "")
+        language = str(item.get("language") or "").strip().lower()
+        if chat_id and language:
+            counts[chat_id][language] += 1
+    return dict(counts)
+
+
+def format_language_counts(counts: Counter | None) -> str:
+    if not counts:
+        return "-"
+    ordered = sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
+    return ", ".join(f"{language}: {count}" for language, count in ordered)
+
+
+def build_rows(
+    items: list[dict],
+    language_counts: dict[str, Counter] | None = None,
+) -> list[list[str]]:
     rows = []
+    language_counts = language_counts or {}
     sorted_items = sorted(items, key=lambda item: as_int(item.get("used_bytes")), reverse=True)
     for item in sorted_items:
         used_bytes = as_int(item.get("used_bytes"))
@@ -108,6 +170,7 @@ def build_rows(items: list[dict]) -> list[list[str]]:
                 format_mb(remaining_bytes),
                 str(as_int(item.get("job_count"))),
                 f"{usage_percent:.0f}%",
+                format_language_counts(language_counts.get(str(item.get("chat_id") or ""))),
                 format_updated_at(as_int(item.get("updated_at"))),
             ]
         )
@@ -135,8 +198,9 @@ def main() -> int:
     args = parse_args()
     try:
         session = boto3.Session(profile_name=args.profile, region_name=args.region)
-        table = session.resource("dynamodb").Table(args.table)
-        items = load_usage(table, args.month)
+        dynamodb = session.resource("dynamodb")
+        items = load_usage(dynamodb.Table(args.table), args.month)
+        chunk_items = load_chunk_languages(dynamodb.Table(args.chunks_table), args.month)
     except ProfileNotFound as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -144,16 +208,30 @@ def main() -> int:
         print("AWS credentials not found. Configure them or pass --profile PROFILE.", file=sys.stderr)
         return 1
     except (BotoCoreError, ClientError) as exc:
-        print(f"Could not read {args.table}: {exc}", file=sys.stderr)
+        print(
+            f"Could not read {args.table} or {args.chunks_table}: {exc}",
+            file=sys.stderr,
+        )
         return 1
 
-    rows = build_rows(items)
-    print(f"Transcription bot usage for {args.month} ({args.table}, {args.region})\n")
+    language_counts = build_language_counts(chunk_items)
+    rows = build_rows(items, language_counts)
+    print(f"Transcription bot usage for {args.month} ({args.region})\n")
     if not rows:
         print("No usage rows found.")
         return 0
 
-    headers = ["Username", "Chat ID", "Used", "Limit", "Remaining", "Files", "Usage", "Updated"]
+    headers = [
+        "Username",
+        "Chat ID",
+        "Used",
+        "Limit",
+        "Remaining",
+        "Files",
+        "Usage",
+        "Languages (chunks)",
+        "Updated",
+    ]
     print(render_table(headers, rows))
 
     total_used = sum(as_int(item.get("used_bytes")) for item in items)
