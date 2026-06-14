@@ -11,6 +11,7 @@ async def save_transcription_job(
     status_message_id: int | None,
     status_log: str | None,
     source_url: str | None = None,
+    username: str | None = None,
 ):
     ttl = int(time.time()) + RETENTION_DAYS * 24 * 60 * 60
     item = {
@@ -28,6 +29,8 @@ async def save_transcription_job(
         item["file_key"] = file_key
     if source_url:
         item["source_url"] = source_url
+    if username:
+        item["username"] = username
     return await transcription_repository.put_job(item)
 
 

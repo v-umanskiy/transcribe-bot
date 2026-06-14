@@ -20,10 +20,10 @@ async def test_consume_quota_allows_drive_downloaded_bytes(drive_worker, monkeyp
 
     async def get_job(job_id):
         assert job_id == "job-1"
-        return {"chat_id": "123"}
+        return {"chat_id": "123", "username": "victor"}
 
-    async def consume(chat_id, bytes_count):
-        calls.append((chat_id, bytes_count))
+    async def consume(chat_id, bytes_count, username=None):
+        calls.append((chat_id, bytes_count, username))
         return drive_worker.quota_service.MonthlyQuotaResult(
             allowed=True,
             chat_id=chat_id,
@@ -39,7 +39,7 @@ async def test_consume_quota_allows_drive_downloaded_bytes(drive_worker, monkeyp
 
     assert await drive_worker._consume_quota_or_update_status("job-1", b"abcd", "mp3") is True
 
-    assert calls == [("123", 4)]
+    assert calls == [("123", 4, "victor")]
 
 
 @pytest.mark.anyio
@@ -81,7 +81,8 @@ async def test_consume_quota_rejects_drive_downloaded_bytes(drive_worker, monkey
     async def get_job(_job_id):
         return {"chat_id": "123"}
 
-    async def consume(chat_id, bytes_count):
+    async def consume(chat_id, bytes_count, username=None):
+        assert username is None
         return drive_worker.quota_service.MonthlyQuotaResult(
             allowed=False,
             chat_id=chat_id,

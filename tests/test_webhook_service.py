@@ -51,8 +51,8 @@ def test_should_use_whisper_accepts_missing_size_with_supported_ext(webhook_serv
 async def test_consume_quota_allows_downloaded_bytes(webhook_service, monkeypatch):
     calls = []
 
-    async def consume(chat_id, bytes_count):
-        calls.append((chat_id, bytes_count))
+    async def consume(chat_id, bytes_count, username=None):
+        calls.append((chat_id, bytes_count, username))
         return webhook_service.quota_service.MonthlyQuotaResult(
             allowed=True,
             chat_id=chat_id,
@@ -65,15 +65,16 @@ async def test_consume_quota_allows_downloaded_bytes(webhook_service, monkeypatc
 
     monkeypatch.setattr(webhook_service.quota_service, "try_consume_monthly_bytes", consume)
 
-    assert await webhook_service._consume_quota_or_notify(123, b"abc", "ogg") is True
-    assert calls == [("123", 3)]
+    assert await webhook_service._consume_quota_or_notify(123, b"abc", "ogg", "victor") is True
+    assert calls == [("123", 3, "victor")]
 
 
 @pytest.mark.anyio
 async def test_consume_quota_rejects_downloaded_bytes(webhook_service, monkeypatch):
     sent_messages = []
 
-    async def consume(chat_id, bytes_count):
+    async def consume(chat_id, bytes_count, username=None):
+        assert username == "victor"
         return webhook_service.quota_service.MonthlyQuotaResult(
             allowed=False,
             chat_id=chat_id,
@@ -90,7 +91,7 @@ async def test_consume_quota_rejects_downloaded_bytes(webhook_service, monkeypat
     monkeypatch.setattr(webhook_service.quota_service, "try_consume_monthly_bytes", consume)
     monkeypatch.setattr(webhook_service.telegram_service, "send_message", send_message)
 
-    assert await webhook_service._consume_quota_or_notify(123, b"abcdef", "ogg") is False
+    assert await webhook_service._consume_quota_or_notify(123, b"abcdef", "ogg", "victor") is False
     assert sent_messages == [
         (
             123,

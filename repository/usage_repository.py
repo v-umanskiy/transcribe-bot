@@ -23,6 +23,7 @@ async def record_monthly_bytes(
     bytes_count: int,
     limit_bytes: int,
     quota_label: str,
+    username: str | None = None,
 ) -> dict:
     if bytes_count < 0:
         raise ValueError("bytes_count must be non-negative")
@@ -30,6 +31,7 @@ async def record_monthly_bytes(
         raise ValueError("limit_bytes must be non-negative")
 
     now = int(time.time())
+    username_expression = ", #username = :username" if username else ""
 
     def _update():
         resp = usage_table.update_item(
@@ -38,7 +40,8 @@ async def record_monthly_bytes(
                 "SET #updated_at = :now, "
                 "#created_at = if_not_exists(#created_at, :now), "
                 "#limit_bytes = if_not_exists(#limit_bytes, :limit_bytes), "
-                "#quota_label = if_not_exists(#quota_label, :quota_label) "
+                "#quota_label = if_not_exists(#quota_label, :quota_label)"
+                f"{username_expression} "
                 "ADD #used_bytes :bytes_count, #job_count :one"
             ),
             ExpressionAttributeNames={
@@ -48,6 +51,7 @@ async def record_monthly_bytes(
                 "#quota_label": "quota_label",
                 "#used_bytes": "used_bytes",
                 "#job_count": "job_count",
+                **({"#username": "username"} if username else {}),
             },
             ExpressionAttributeValues={
                 ":now": now,
@@ -55,6 +59,7 @@ async def record_monthly_bytes(
                 ":limit_bytes": int(limit_bytes),
                 ":quota_label": quota_label,
                 ":one": 1,
+                **({":username": username} if username else {}),
             },
             ReturnValues="ALL_NEW",
         )
@@ -69,6 +74,7 @@ async def try_consume_monthly_bytes(
     bytes_count: int,
     limit_bytes: int,
     quota_label: str,
+    username: str | None = None,
 ) -> dict | None:
     if bytes_count < 0:
         raise ValueError("bytes_count must be non-negative")
@@ -76,6 +82,7 @@ async def try_consume_monthly_bytes(
         raise ValueError("limit_bytes must be non-negative")
 
     now = int(time.time())
+    username_expression = ", #username = :username" if username else ""
     remaining_before_update = limit_bytes - bytes_count
     if remaining_before_update < 0:
         return None
@@ -88,7 +95,8 @@ async def try_consume_monthly_bytes(
                     "SET #updated_at = :now, "
                     "#created_at = if_not_exists(#created_at, :now), "
                     "#limit_bytes = if_not_exists(#limit_bytes, :limit_bytes), "
-                    "#quota_label = if_not_exists(#quota_label, :quota_label) "
+                    "#quota_label = if_not_exists(#quota_label, :quota_label)"
+                    f"{username_expression} "
                     "ADD #used_bytes :bytes_count, #job_count :one"
                 ),
                 ConditionExpression="attribute_not_exists(#used_bytes) OR #used_bytes <= :remaining",
@@ -99,6 +107,7 @@ async def try_consume_monthly_bytes(
                     "#quota_label": "quota_label",
                     "#used_bytes": "used_bytes",
                     "#job_count": "job_count",
+                    **({"#username": "username"} if username else {}),
                 },
                 ExpressionAttributeValues={
                     ":now": now,
@@ -107,6 +116,7 @@ async def try_consume_monthly_bytes(
                     ":limit_bytes": int(limit_bytes),
                     ":quota_label": quota_label,
                     ":one": 1,
+                    **({":username": username} if username else {}),
                 },
                 ReturnValues="ALL_NEW",
             )

@@ -20,7 +20,7 @@ async def handle_telegram_webhook_data(data: dict) -> dict:
         return {"ok": True}
 
 
-async def _schedule_google_drive_download(chat_id, text):
+async def _schedule_google_drive_download(chat_id, text, username: str | None = None):
     status_message_id = await telegram_service.send_message(chat_id, "Got a link. I'll try to download it.")
     job_id = f"tg-{uuid.uuid4()}"
     await transcription_table_service.save_transcription_job(
@@ -31,6 +31,7 @@ async def _schedule_google_drive_download(chat_id, text):
         status_message_id,
         "Got a link. I'll try to download it.",
         source_url=text,
+        username=username,
     )
     sqs_service.send_drive_download(job_id, text)
     return {"ok": True}
@@ -44,11 +45,17 @@ async def _notify_file_too_large(chat_id):
     )
 
 
-async def _consume_quota_or_notify(chat_id: int | str, file_bytes: bytes, file_ext: str | None) -> bool:
+async def _consume_quota_or_notify(
+    chat_id: int | str,
+    file_bytes: bytes,
+    file_ext: str | None,
+    username: str | None = None,
+) -> bool:
     try:
         result = await quota_service.try_consume_monthly_bytes(
             str(chat_id),
             len(file_bytes),
+            username=username,
         )
         if result.allowed:
             print(
@@ -146,6 +153,7 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
     if not chat_id:
         return {"ok": True}
 
+    username = (message.get("from") or {}).get("username")
     voice = message.get("voice")
     document = message.get("document")
     audio = message.get("audio")
@@ -156,7 +164,7 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         return command_result
 
     if text_utils.looks_like_drive_link(text):
-        return await _schedule_google_drive_download(chat_id, text)
+        return await _schedule_google_drive_download(chat_id, text, username)
 
     if not voice and not document and not audio:
         await telegram_service.send_message(
@@ -185,7 +193,7 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
         await telegram_service.send_message(chat_id, "Sorry, I couldn’t download your audio message")
         return {"ok": True}
 
-    if not await _consume_quota_or_notify(chat_id, file_bytes, file_ext):
+    if not await _consume_quota_or_notify(chat_id, file_bytes, file_ext, username):
         if status_message_id:
             await telegram_service.delete_message(int(chat_id), int(status_message_id))
         return {"ok": True}

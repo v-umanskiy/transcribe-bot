@@ -114,6 +114,7 @@ async def _consume_quota_or_update_status(job_id: str, file_bytes: bytes, file_e
         result = await quota_service.try_consume_monthly_bytes(
             str(job["chat_id"]),
             len(file_bytes),
+            username=job.get("username"),
         )
         if result.allowed:
             print(

@@ -87,6 +87,7 @@ async def record_monthly_bytes(
     month: str | None = None,
     source: str | None = None,
     file_ext: str | None = None,
+    username: str | None = None,
 ) -> MonthlyUsageRecord:
     usage_month = month or current_month()
     updated = await usage_repository.record_monthly_bytes(
@@ -95,6 +96,7 @@ async def record_monthly_bytes(
         int(bytes_count),
         configured_limit_bytes(),
         configured_quota_label(),
+        username=username,
     )
     record = MonthlyUsageRecord(
         chat_id=str(chat_id),
@@ -129,6 +131,7 @@ async def try_consume_monthly_bytes(
     month: str | None = None,
     limit_bytes: int | None = None,
     quota_label: str | None = None,
+    username: str | None = None,
 ) -> MonthlyQuotaResult:
     usage_month = month or current_month()
     usage = await usage_repository.get_monthly_usage(str(chat_id), usage_month)
@@ -147,6 +150,7 @@ async def try_consume_monthly_bytes(
         int(bytes_count),
         resolved_limit_bytes,
         resolved_quota_label,
+        username=username,
     )
     if updated:
         return MonthlyQuotaResult(

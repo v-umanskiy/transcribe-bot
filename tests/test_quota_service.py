@@ -66,12 +66,13 @@ async def test_get_current_quota_label_uses_current_status(monkeypatch):
 
 @pytest.mark.anyio
 async def test_record_monthly_bytes_reports_updated_usage(monkeypatch):
-    async def record(chat_id, month, bytes_count, limit_bytes, quota_label):
+    async def record(chat_id, month, bytes_count, limit_bytes, quota_label, username=None):
         assert chat_id == "123"
         assert month == "2026-06"
         assert bytes_count == 10
         assert limit_bytes == quota_service.MONTHLY_QUOTA_BYTES
         assert quota_label == quota_service.MONTHLY_QUOTA_LABEL
+        assert username == "victor"
         return {
             "used_bytes": 40,
             "job_count": 3,
@@ -87,6 +88,7 @@ async def test_record_monthly_bytes_reports_updated_usage(monkeypatch):
         month="2026-06",
         source="telegram",
         file_ext="ogg",
+        username="victor",
     )
 
     assert result.chat_id == "123"
@@ -100,12 +102,13 @@ async def test_record_monthly_bytes_reports_updated_usage(monkeypatch):
 
 @pytest.mark.anyio
 async def test_try_consume_monthly_bytes_allows_and_reports_updated_usage(monkeypatch):
-    async def consume(chat_id, month, bytes_count, limit_bytes, quota_label):
+    async def consume(chat_id, month, bytes_count, limit_bytes, quota_label, username=None):
         assert chat_id == "123"
         assert month == "2026-06"
         assert bytes_count == 10
         assert limit_bytes == 100
         assert quota_label == "test-label"
+        assert username == "victor"
         return {"used_bytes": 40, "limit_bytes": 100, "quota_label": "test-label"}
 
     async def get_usage(chat_id, month):
@@ -122,6 +125,7 @@ async def test_try_consume_monthly_bytes_allows_and_reports_updated_usage(monkey
         month="2026-06",
         limit_bytes=100,
         quota_label="test-label",
+        username="victor",
     )
 
     assert result.allowed is True
@@ -139,12 +143,13 @@ async def test_try_consume_monthly_bytes_uses_existing_persisted_limit(monkeypat
         assert month == "2026-06"
         return {"used_bytes": 40, "limit_bytes": 200, "quota_label": "existing-label"}
 
-    async def consume(chat_id, month, bytes_count, limit_bytes, quota_label):
+    async def consume(chat_id, month, bytes_count, limit_bytes, quota_label, username=None):
         assert chat_id == "123"
         assert month == "2026-06"
         assert bytes_count == 10
         assert limit_bytes == 200
         assert quota_label == "existing-label"
+        assert username is None
         return {"used_bytes": 50, "limit_bytes": 200, "quota_label": "existing-label"}
 
     monkeypatch.setattr(quota_service.usage_repository, "get_monthly_usage", get_usage)
@@ -167,7 +172,7 @@ async def test_try_consume_monthly_bytes_uses_existing_persisted_limit(monkeypat
 
 @pytest.mark.anyio
 async def test_try_consume_monthly_bytes_rejects_and_reports_current_usage(monkeypatch):
-    async def consume(*_args):
+    async def consume(*_args, **_kwargs):
         return None
 
     async def get_usage(chat_id, month):
