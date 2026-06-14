@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Protocol
 
+from utils.constants import QUOTA_EXTENSION_MESSAGE
+
 
 class QuotaStatus(Protocol):
     month: str
@@ -53,5 +55,6 @@ def format_quota_exceeded(result: QuotaResult) -> str:
         f"Used: {format_bytes_mb_precise(result.used_bytes)} / {format_bytes_mb_precise(result.limit_bytes)}\n"
         f"This file: {format_bytes_mb_precise(result.requested_bytes)}\n"
         f"Remaining: {format_bytes_mb_precise(result.remaining_bytes)}\n\n"
-        "Your quota resets next month."
+        "Your free quota resets next month.\n\n"
+        f"{QUOTA_EXTENSION_MESSAGE}"
     )

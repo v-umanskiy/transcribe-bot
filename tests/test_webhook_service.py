@@ -98,7 +98,12 @@ async def test_consume_quota_rejects_downloaded_bytes(webhook_service, monkeypat
             "Used: 0.0 MB / 0.0 MB\n"
             "This file: 0.0 MB\n"
             "Remaining: 0.0 MB\n\n"
-            "Your quota resets next month.",
+            "Your free quota resets next month.\n\n"
+            "Need more quota this month?\n"
+            "100 MB: 7 €\n"
+            "300 MB: 20 €\n\n"
+            "Contact:\n"
+            "https://system-craft.net/en/contact/",
         )
     ]
 

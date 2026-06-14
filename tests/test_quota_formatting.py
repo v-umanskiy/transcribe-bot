@@ -63,5 +63,10 @@ def test_format_quota_exceeded():
         "Used: 95.0 MB / 100.0 MB\n"
         "This file: 10.0 MB\n"
         "Remaining: 5.0 MB\n\n"
-        "Your quota resets next month."
+        "Your free quota resets next month.\n\n"
+        "Need more quota this month?\n"
+        "100 MB: 7 €\n"
+        "300 MB: 20 €\n\n"
+        "Contact:\n"
+        "https://system-craft.net/en/contact/"
     )

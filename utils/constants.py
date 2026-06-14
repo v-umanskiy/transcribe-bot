@@ -28,6 +28,14 @@ LIMIT_LOAD_FAILED_MESSAGE = (
     "Sorry, I couldn't load your monthly usage right now. Please try again later."
 )
 
+QUOTA_EXTENSION_MESSAGE = (
+    "Need more quota this month?\n"
+    "100 MB: 7 €\n"
+    "300 MB: 20 €\n\n"
+    "Contact:\n"
+    "https://system-craft.net/en/contact/"
+)
+
 DRIVE_DOWNLOAD_FAILED_MESSAGE = (
     "Couldn't download the file. Please check the link is public and try again."
 )
