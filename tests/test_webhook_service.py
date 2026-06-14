@@ -120,6 +120,45 @@ async def test_consume_quota_fails_open_on_error(webhook_service, monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_process_whisper_text_saves_chunk_language(webhook_service, monkeypatch):
+    saved_chunks = []
+    completed_chunks = []
+    sent_messages = []
+
+    async def save_chunk(job_id, chunk_index, total_chunks, text, chat_id):
+        saved_chunks.append((job_id, chunk_index, total_chunks, text, chat_id))
+
+    async def refine_text(text):
+        assert text == "Hallo Welt"
+        return webhook_service.gemini_service.RefinementResult(
+            text="Hallo, Welt.",
+            language="de",
+        )
+
+    async def send_message(chat_id, message):
+        sent_messages.append((chat_id, message))
+
+    monkeypatch.setattr(webhook_service.chunks_table_service, "save_chunk", save_chunk)
+    monkeypatch.setattr(webhook_service.gemini_service, "refine_text", refine_text)
+    monkeypatch.setattr(webhook_service.telegram_service, "send_message", send_message)
+    monkeypatch.setattr(
+        webhook_service.chunks_table_service,
+        "mark_chunk_done",
+        lambda job_id, chunk_index, language: completed_chunks.append(
+            (job_id, chunk_index, language)
+        )
+        or True,
+    )
+
+    result = await webhook_service._process_whisper_text("123", "job-1", "Hallo Welt")
+
+    assert result == {"status": "ok"}
+    assert saved_chunks == [("job-1", 1, 1, "Hallo Welt", "123")]
+    assert completed_chunks == [("job-1", 1, "de")]
+    assert sent_messages == [(123, "Hallo, Welt.")]
+
+
+@pytest.mark.anyio
 async def test_handle_command_ignores_non_commands(webhook_service):
     assert await webhook_service._handle_command(123, "hello") is None
 

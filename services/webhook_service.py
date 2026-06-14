@@ -4,6 +4,7 @@ from . import s3_service
 from . import telegram_service
 from . import transcription_aws_service
 from . import transcription_table_service
+from . import chunks_table_service
 from . import sqs_service
 from . import whisper_service
 from . import gemini_service
@@ -134,13 +135,18 @@ async def _handle_command(chat_id: int | str, text: str) -> dict | None:
     return None
 
 
-async def _process_whisper_text(chat_id: str, transcript_text: str) -> dict:
-    refined = await gemini_service.refine_text(transcript_text)
-    refined = refined.strip() or transcript_text
+async def _process_whisper_text(chat_id: str, job_id: str, transcript_text: str) -> dict:
+    await chunks_table_service.save_chunk(job_id, 1, 1, transcript_text, chat_id)
+
+    refinement = await gemini_service.refine_text(transcript_text)
+    refined = refinement.text.strip() or transcript_text
 
     parts = text_utils.split_by_length(refined, max_len=3500)
     for part in parts:
         await telegram_service.send_message(int(chat_id), part)
+
+    if not chunks_table_service.mark_chunk_done(job_id, 1, refinement.language):
+        print("CHUNK_MARK_DONE_FAILED:", job_id, 1)
 
     return {"status": "ok"}
 
@@ -235,7 +241,7 @@ async def _handle_telegram_webhook_data(data: dict) -> dict:
                 int(status_message_id),
                 "Recognizing voice...\nVoice recognized\nRefining...",
             )
-        await _process_whisper_text(str(chat_id), transcript_text)
+        await _process_whisper_text(str(chat_id), job_id, transcript_text)
         if status_message_id:
             await telegram_service.delete_message(int(chat_id), int(status_message_id))
     else:

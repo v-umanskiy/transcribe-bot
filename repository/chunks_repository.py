@@ -18,14 +18,18 @@ async def get_chunk(job_id: str, chunk_index: int) -> dict | None:
     return await asyncio.to_thread(_get)
 
 
-def mark_chunk_done(job_id: str, chunk_index: int) -> bool:
+def mark_chunk_done(job_id: str, chunk_index: int, language: str) -> bool:
     try:
         chunks_table.update_item(
             Key={"job_id": job_id, "chunk_index": int(chunk_index)},
-            UpdateExpression="SET #s = :done",
+            UpdateExpression="SET #s = :done, #l = :language",
             ConditionExpression="#s = :pending",
-            ExpressionAttributeNames={"#s": "status"},
-            ExpressionAttributeValues={":done": "done", ":pending": "pending"},
+            ExpressionAttributeNames={"#s": "status", "#l": "language"},
+            ExpressionAttributeValues={
+                ":done": "done",
+                ":pending": "pending",
+                ":language": language,
+            },
             ReturnValues="UPDATED_NEW",
         )
         return True

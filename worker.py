@@ -47,8 +47,8 @@ async def _handle_records(records: list[dict]):
             print("CHUNK_MISSING_DATA:", job_id, chunk_index)
             continue
 
-        refined = await gemini_service.refine_text(text)
-        refined = refined.strip() or text
+        refinement = await gemini_service.refine_text(text)
+        refined = refinement.text.strip() or text
 
         parts = text_utils.split_by_length(refined, max_len=3500)
 
@@ -58,7 +58,11 @@ async def _handle_records(records: list[dict]):
         for part in parts:
             await telegram_service.send_message(int(chat_id), part)
 
-        if not chunks_table_service.mark_chunk_done(job_id, int(chunk_index)):
+        if not chunks_table_service.mark_chunk_done(
+            job_id,
+            int(chunk_index),
+            refinement.language,
+        ):
             print("CHUNK_MARK_DONE_FAILED:", job_id, chunk_index)
             continue
 
