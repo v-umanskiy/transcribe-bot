@@ -24,6 +24,17 @@ START_MESSAGE_TEMPLATE = (
     "https://system-craft.net/en/privacy/"
 )
 
+PRIVACY_MESSAGE = (
+    "Privacy policy:\n"
+    "https://system-craft.net/en/privacy/\n\n"
+    "AI services may process submitted content. Please don't send sensitive or confidential content."
+)
+
+CONTACT_MESSAGE = (
+    "Contact the developer for additional quota or other questions:\n"
+    "https://system-craft.net/en/contact/"
+)
+
 LIMIT_LOAD_FAILED_MESSAGE = (
     "Sorry, I couldn't load your monthly usage right now. Please try again later."
 )

@@ -4,7 +4,7 @@ import sys
 import pytest
 
 from services import secret_service
-from utils.constants import LIMIT_LOAD_FAILED_MESSAGE, START_MESSAGE_TEMPLATE
+from utils.constants import CONTACT_MESSAGE, LIMIT_LOAD_FAILED_MESSAGE, PRIVACY_MESSAGE, START_MESSAGE_TEMPLATE
 
 
 class _DummySecretsManager:
@@ -144,6 +144,30 @@ async def test_start_command_sends_intro(webhook_service, monkeypatch):
             START_MESSAGE_TEMPLATE,
         )
     ]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("command", "expected_message"),
+    [
+        ("/privacy", PRIVACY_MESSAGE),
+        ("/contact", CONTACT_MESSAGE),
+    ],
+)
+async def test_static_command_sends_message(webhook_service, monkeypatch, command, expected_message):
+    sent_messages = []
+
+    async def send_message(chat_id, message):
+        sent_messages.append((chat_id, message))
+
+    monkeypatch.setattr(webhook_service.telegram_service, "send_message", send_message)
+
+    result = await webhook_service._handle_telegram_webhook_data(
+        {"message": {"chat": {"id": 123}, "text": command}}
+    )
+
+    assert result == {"ok": True}
+    assert sent_messages == [(123, expected_message)]
 
 
 @pytest.mark.anyio

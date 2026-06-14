@@ -9,7 +9,7 @@ from . import whisper_service
 from . import gemini_service
 from . import quota_service
 from utils import text_utils, audio_utils, quota_formatting
-from utils.constants import LIMIT_LOAD_FAILED_MESSAGE, START_MESSAGE_TEMPLATE
+from utils.constants import CONTACT_MESSAGE, LIMIT_LOAD_FAILED_MESSAGE, PRIVACY_MESSAGE, START_MESSAGE_TEMPLATE
 
 
 async def handle_telegram_webhook_data(data: dict) -> dict:
@@ -116,12 +116,21 @@ async def _handle_start_command(chat_id: int | str) -> dict:
     return {"ok": True}
 
 
+async def _handle_static_command(chat_id: int | str, message: str) -> dict:
+    await telegram_service.send_message(chat_id, message)
+    return {"ok": True}
+
+
 async def _handle_command(chat_id: int | str, text: str) -> dict | None:
     command = text.strip().lower()
     if command == "/start":
         return await _handle_start_command(chat_id)
     if command == "/limit":
         return await _handle_limit_command(chat_id)
+    if command == "/privacy":
+        return await _handle_static_command(chat_id, PRIVACY_MESSAGE)
+    if command == "/contact":
+        return await _handle_static_command(chat_id, CONTACT_MESSAGE)
     return None
 
 
