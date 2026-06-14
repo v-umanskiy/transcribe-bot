@@ -119,17 +119,12 @@ async def test_handle_command_ignores_non_commands(webhook_service):
 
 
 @pytest.mark.anyio
-async def test_start_command_sends_intro_with_quota_label(webhook_service, monkeypatch):
+async def test_start_command_sends_intro(webhook_service, monkeypatch):
     sent_messages = []
-
-    async def get_quota_label(chat_id):
-        assert chat_id == "123"
-        return "200 MB"
 
     async def send_message(chat_id, message):
         sent_messages.append((chat_id, message))
 
-    monkeypatch.setattr(webhook_service.quota_service, "get_current_quota_label", get_quota_label)
     monkeypatch.setattr(webhook_service.telegram_service, "send_message", send_message)
 
     result = await webhook_service._handle_telegram_webhook_data(
@@ -140,34 +135,7 @@ async def test_start_command_sends_intro_with_quota_label(webhook_service, monke
     assert sent_messages == [
         (
             123,
-            START_MESSAGE_TEMPLATE.format(quota_label="200 MB"),
-        )
-    ]
-
-
-@pytest.mark.anyio
-async def test_start_command_falls_back_to_configured_quota_label(webhook_service, monkeypatch):
-    sent_messages = []
-
-    async def get_quota_label(_chat_id):
-        raise RuntimeError("usage table unavailable")
-
-    async def send_message(chat_id, message):
-        sent_messages.append((chat_id, message))
-
-    monkeypatch.setattr(webhook_service.quota_service, "get_current_quota_label", get_quota_label)
-    monkeypatch.setattr(webhook_service.quota_service, "configured_quota_label", lambda: "100 MB")
-    monkeypatch.setattr(webhook_service.telegram_service, "send_message", send_message)
-
-    result = await webhook_service._handle_telegram_webhook_data(
-        {"message": {"chat": {"id": 123}, "text": "/start"}}
-    )
-
-    assert result == {"ok": True}
-    assert sent_messages == [
-        (
-            123,
-            START_MESSAGE_TEMPLATE.format(quota_label="100 MB"),
+            START_MESSAGE_TEMPLATE,
         )
     ]
 

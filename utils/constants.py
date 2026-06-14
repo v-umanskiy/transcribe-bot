@@ -17,8 +17,11 @@ MONTHLY_QUOTA_LABEL = "30 MB"
 START_MESSAGE_TEMPLATE = (
     "Send me a voice message, audio file, or public Google Drive audio link "
     "and I'll transcribe it.\n\n"
-    "Free monthly limit: {quota_label} of audio.\n"
-    "Use /limit to check your remaining quota."
+    "About:\n"
+    "https://system-craft.net/en/transcription-bot/\n\n"
+    "AI services may process submitted content. Please don't send sensitive or confidential content.\n\n"
+    "Privacy:\n"
+    "https://system-craft.net/en/privacy/"
 )
 
 LIMIT_LOAD_FAILED_MESSAGE = (

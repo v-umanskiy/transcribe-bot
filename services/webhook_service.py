@@ -105,16 +105,7 @@ async def _handle_limit_command(chat_id: int | str) -> dict:
 
 
 async def _handle_start_command(chat_id: int | str) -> dict:
-    try:
-        quota_label = await quota_service.get_current_quota_label(str(chat_id))
-    except Exception as exc:
-        print("START_COMMAND_QUOTA_ERROR", {"chat_id": str(chat_id), "error": repr(exc)})
-        quota_label = quota_service.configured_quota_label()
-
-    await telegram_service.send_message(
-        chat_id,
-        START_MESSAGE_TEMPLATE.format(quota_label=quota_label),
-    )
+    await telegram_service.send_message(chat_id, START_MESSAGE_TEMPLATE)
     return {"ok": True}
 
 
