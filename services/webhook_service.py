@@ -139,7 +139,13 @@ async def _process_whisper_text(chat_id: str, job_id: str, transcript_text: str)
     await chunks_table_service.save_chunk(job_id, 1, 1, transcript_text, chat_id)
 
     refinement = await gemini_service.refine_text(transcript_text)
-    refined = refinement.text.strip() or transcript_text
+    refined = transcript_text if refinement.problem_reason else (refinement.text.strip() or transcript_text)
+
+    if refinement.problem_reason:
+        await telegram_service.send_message(
+            int(chat_id),
+            gemini_service.format_problem_message(refinement.problem_reason),
+        )
 
     parts = text_utils.split_by_length(refined, max_len=3500)
     for part in parts:

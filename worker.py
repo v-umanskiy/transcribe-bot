@@ -48,7 +48,13 @@ async def _handle_records(records: list[dict]):
             continue
 
         refinement = await gemini_service.refine_text(text)
-        refined = refinement.text.strip() or text
+        refined = text if refinement.problem_reason else (refinement.text.strip() or text)
+
+        if refinement.problem_reason:
+            await telegram_service.send_message(
+                int(chat_id),
+                gemini_service.format_problem_message(refinement.problem_reason),
+            )
 
         parts = text_utils.split_by_length(refined, max_len=3500)
 
