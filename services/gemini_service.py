@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 
 from google import genai
+from pydantic import BaseModel, Field
 
 from utils.constants import REFINE_SYSTEM_PROMPT
 from . import secret_service
@@ -19,8 +20,55 @@ class RefinementResult:
     problem_reason: str | None = None
 
 
+class _RefinementPayload(BaseModel):
+    refined_text: str = Field(
+        description="The refined transcription as plain text with no formatting."
+    )
+    language: str = Field(
+        description=(
+            "Dominant language of the input as an ISO 639-1 two-letter code, "
+            "or 'und' if it cannot be determined."
+        )
+    )
+    problem_reason: str = Field(
+        default="",
+        description=(
+            "Empty string when refinement succeeded. If the transcript cannot "
+            "be refined, provide a short and informative reason (5 words max). "
+            "E.g.: 'inappropriate content', 'unreadable text'."
+        ),
+    )
+
+
 def format_problem_message(problem_reason: str) -> str:
     return f"Refinement issue: {problem_reason}.\nSending the best available transcript."
+
+
+def _get_attr_or_key(value, name: str):
+    if isinstance(value, dict):
+        return value.get(name)
+    return getattr(value, name, None)
+
+
+def _reason_label(value) -> str:
+    raw = getattr(value, "value", None) or getattr(value, "name", None) or str(value)
+    return str(raw).split(".")[-1].lower()
+
+
+def _empty_response_reason(response) -> str:
+    prompt_feedback = getattr(response, "prompt_feedback", None)
+    block_reason = _get_attr_or_key(prompt_feedback, "block_reason")
+    if block_reason:
+        return f"prompt_blocked:{_reason_label(block_reason)}"
+
+    candidates = getattr(response, "candidates", None) or []
+    if candidates:
+        finish_reason = _get_attr_or_key(candidates[0], "finish_reason")
+        label = _reason_label(finish_reason) if finish_reason else ""
+        if label and label not in {"stop", "finish_reason_unspecified"}:
+            return f"candidate_stopped:{label}"
+
+    return "gemini_empty_response"
 
 
 async def refine_text(text: str) -> RefinementResult:
@@ -35,28 +83,7 @@ async def refine_text(text: str) -> RefinementResult:
                 config=genai.types.GenerateContentConfig(
                     system_instruction=REFINE_SYSTEM_PROMPT,
                     response_mime_type="application/json",
-                    response_schema={
-                        "type": "OBJECT",
-                        "properties": {
-                            "refined_text": {"type": "STRING"},
-                            "language": {
-                                "type": "STRING",
-                                "description": (
-                                    "Dominant language of the input as an ISO 639-1 two-letter code, "
-                                    "or 'und' if it cannot be determined."
-                                ),
-                            },
-                            "problem_reason": {
-                                "type": "STRING",
-                                "description": (
-                                    "Empty string when refinement succeeded. If the transcript cannot "
-                                    "be refined, provide a short and informative reason (5 words max)."
-                                    "E.g.: 'inappropriate content', 'unreadable text'."
-                                ),
-                            },
-                        },
-                        "required": ["refined_text", "language", "problem_reason"],
-                    },
+                    response_schema=_RefinementPayload,
                 ),
             )
         except Exception as exc:
@@ -80,7 +107,15 @@ async def refine_text(text: str) -> RefinementResult:
             return RefinementResult(
                 text=text or "",
                 language="und",
-                problem_reason="gemini_empty_response",
+                problem_reason=_empty_response_reason(response),
+            )
+
+        parsed = getattr(response, "parsed", None)
+        if isinstance(parsed, _RefinementPayload):
+            return RefinementResult(
+                text=parsed.refined_text,
+                language=(parsed.language or "und").lower(),
+                problem_reason=(parsed.problem_reason or "").strip() or None,
             )
 
         try:
