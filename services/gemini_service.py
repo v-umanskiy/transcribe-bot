@@ -50,7 +50,8 @@ async def refine_text(text: str) -> RefinementResult:
                                 "type": "STRING",
                                 "description": (
                                     "Empty string when refinement succeeded. If the transcript cannot "
-                                    "be refined, provide a short snake_case reason."
+                                    "be refined, provide a short and informative reason (5 words max)."
+                                    "E.g.: 'inappropriate content', 'unreadable text'."
                                 ),
                             },
                         },
