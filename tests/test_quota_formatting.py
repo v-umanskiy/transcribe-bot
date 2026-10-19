@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from utils import quota_formatting
+from utils.constants import QUOTA_EXTENSION_MESSAGE
 
 
 @dataclass(frozen=True)
@@ -64,9 +65,5 @@ def test_format_quota_exceeded():
         "This file: 10.0 MB\n"
         "Remaining: 5.0 MB\n\n"
         "Your free quota resets next month.\n\n"
-        "Need more quota this month?\n"
-        "100 MB: 7 €\n"
-        "300 MB: 20 €\n\n"
-        "Contact:\n"
-        "https://system-craft.net/en/contact/"
+        f"{QUOTA_EXTENSION_MESSAGE}"
     )

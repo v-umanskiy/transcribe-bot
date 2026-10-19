@@ -4,6 +4,7 @@ import sys
 import pytest
 
 from services import secret_service
+from utils.constants import QUOTA_EXTENSION_MESSAGE
 
 
 @pytest.fixture()
@@ -109,11 +110,7 @@ async def test_consume_quota_rejects_drive_downloaded_bytes(drive_worker, monkey
             "This file: 0.0 MB\n"
             "Remaining: 0.0 MB\n\n"
             "Your free quota resets next month.\n\n"
-            "Need more quota this month?\n"
-            "100 MB: 7 €\n"
-            "300 MB: 20 €\n\n"
-            "Contact:\n"
-            "https://system-craft.net/en/contact/",
+            f"{QUOTA_EXTENSION_MESSAGE}",
         )
     ]
 

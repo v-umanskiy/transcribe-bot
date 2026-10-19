@@ -1,3 +1,5 @@
+import os
+
 REFINE_SYSTEM_PROMPT = (
     "You are a transcription refiner. "
     "Remove speech fillers, false starts, accidental repeated words, and obvious transcription artifacts. "
@@ -18,38 +20,32 @@ RETENTION_DAYS = 60
 MONTHLY_QUOTA_BYTES = 30 * 1024 * 1024
 MONTHLY_QUOTA_LABEL = "30 MB"
 
+PRIVACY_URL = os.getenv("PRIVACY_URL", "").strip()
+CONTACT_URL = os.getenv("CONTACT_URL", "").strip()
+
+AI_NOTICE = "AI services may process submitted content. Please don't send sensitive or confidential content."
+
+
+def link_message(label: str, url: str) -> str:
+    return f"{label}:\n{url}" if url else f"{label}."
+
+
 START_MESSAGE_TEMPLATE = (
     "Send me a voice message, audio file, or public Google Drive audio link "
     "and I'll transcribe it.\n\n"
-    "About:\n"
-    "https://system-craft.net/en/transcription-bot/\n\n"
-    "AI services may process submitted content. Please don't send sensitive or confidential content.\n\n"
-    "Privacy:\n"
-    "https://system-craft.net/en/privacy/"
+    f"{AI_NOTICE}"
+    + (f"\n\nPrivacy:\n{PRIVACY_URL}" if PRIVACY_URL else "")
 )
 
-PRIVACY_MESSAGE = (
-    "Privacy policy:\n"
-    "https://system-craft.net/en/privacy/\n\n"
-    "AI services may process submitted content. Please don't send sensitive or confidential content."
-)
+PRIVACY_MESSAGE = (f"Privacy policy:\n{PRIVACY_URL}\n\n" if PRIVACY_URL else "") + AI_NOTICE
 
-CONTACT_MESSAGE = (
-    "Contact the developer for additional quota or other questions:\n"
-    "https://system-craft.net/en/contact/"
-)
+CONTACT_MESSAGE = link_message("Contact the developer for additional quota or other questions", CONTACT_URL)
 
 LIMIT_LOAD_FAILED_MESSAGE = (
     "Sorry, I couldn't load your monthly usage right now. Please try again later."
 )
 
-QUOTA_EXTENSION_MESSAGE = (
-    "Need more quota this month?\n"
-    "100 MB: 7 €\n"
-    "300 MB: 20 €\n\n"
-    "Contact:\n"
-    "https://system-craft.net/en/contact/"
-)
+QUOTA_EXTENSION_MESSAGE = f"Need more quota this month?\n{link_message('Contact the developer', CONTACT_URL)}"
 
 DRIVE_DOWNLOAD_FAILED_MESSAGE = (
     "Couldn't download the file. Please check the link is public and try again."

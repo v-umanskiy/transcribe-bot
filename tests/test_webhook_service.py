@@ -4,7 +4,13 @@ import sys
 import pytest
 
 from services import secret_service
-from utils.constants import CONTACT_MESSAGE, LIMIT_LOAD_FAILED_MESSAGE, PRIVACY_MESSAGE, START_MESSAGE_TEMPLATE
+from utils.constants import (
+    CONTACT_MESSAGE,
+    LIMIT_LOAD_FAILED_MESSAGE,
+    PRIVACY_MESSAGE,
+    QUOTA_EXTENSION_MESSAGE,
+    START_MESSAGE_TEMPLATE,
+)
 
 
 class _DummySecretsManager:
@@ -100,11 +106,7 @@ async def test_consume_quota_rejects_downloaded_bytes(webhook_service, monkeypat
             "This file: 0.0 MB\n"
             "Remaining: 0.0 MB\n\n"
             "Your free quota resets next month.\n\n"
-            "Need more quota this month?\n"
-            "100 MB: 7 €\n"
-            "300 MB: 20 €\n\n"
-            "Contact:\n"
-            "https://system-craft.net/en/contact/",
+            f"{QUOTA_EXTENSION_MESSAGE}",
         )
     ]
 
