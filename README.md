@@ -9,17 +9,18 @@ It runs serverless on AWS Lambda, with a monthly quota per chat.
 ## How It Works
 
 ```mermaid
-flowchart LR
-    U[Telegram] --> W[Webhook Lambda]
+flowchart TD
+    U[Telegram message] --> W[Webhook Lambda]
     W -->|up to 3 min| WH[Whisper]
     W -->|longer| AT[AWS Transcribe]
-    W -->|Drive link| DW[Drive worker] --> AT
+    W -->|Drive link| DW[Drive worker]
+    DW --> AT
     AT -->|transcript in S3| TL[Transcript Lambda]
-    TL --> Q[SQS, one chunk at a time]
+    TL --> Q[SQS: one chunk at a time]
     Q --> WK[Worker Lambda]
     WH --> G[Gemini refinement]
     WK --> G
-    G --> U
+    G --> R[Reply in Telegram]
 ```
 
 1. **Short audio** (up to 3 minutes, at most 20 MB, ogg, mp3, wav or flac) is transcribed
