@@ -98,11 +98,7 @@ async def refine_text(text: str) -> RefinementResult:
         if response_text is None:
             print(
                 "GEMINI_REFINE_EMPTY_RESPONSE",
-                {
-                    "chars": text_len,
-                    "prompt_feedback": repr(getattr(response, "prompt_feedback", None)),
-                    "candidates": repr(getattr(response, "candidates", None)),
-                },
+                {"chars": text_len, "reason": _empty_response_reason(response)},
             )
             return RefinementResult(
                 text=text or "",
@@ -123,11 +119,7 @@ async def refine_text(text: str) -> RefinementResult:
         except (TypeError, json.JSONDecodeError) as exc:
             print(
                 "GEMINI_REFINE_PARSE_ERROR",
-                {
-                    "chars": text_len,
-                    "error": repr(exc),
-                    "response_text_preview": str(response_text)[:500],
-                },
+                {"chars": text_len, "error": repr(exc), "response_chars": len(str(response_text))},
             )
             return RefinementResult(
                 text=text or "",

@@ -14,7 +14,7 @@ MAX_DRIVE_FILE_BYTES = 70 * 1024 * 1024
 
 
 def handler(event, _context):
-    print("SQS_EVENT:", event)
+    print("SQS_EVENT_RECEIVED", {"records": len(event.get("Records") or [])})
     asyncio.run(_handle_records(event.get("Records") or []))
     return {"ok": True}
 
@@ -25,17 +25,17 @@ async def _handle_records(records: list[dict]):
         try:
             payload = json.loads(body)
         except json.JSONDecodeError:
-            print("SQS_BODY_INVALID_JSON:", body)
+            print("SQS_BODY_INVALID_JSON", {"chars": len(body)})
             continue
 
         if payload.get("type") != "drive":
-            print("SQS_BODY_UNSUPPORTED_TYPE:", payload)
+            print("SQS_BODY_UNSUPPORTED_TYPE", {"type": payload.get("type")})
             continue
 
         job_id = payload.get("job_id")
         url = payload.get("url")
         if not job_id or not url:
-            print("SQS_BODY_MISSING_FIELDS:", payload)
+            print("SQS_BODY_MISSING_FIELDS", {"keys": sorted(payload)})
             continue
 
         file_bytes, file_name, file_id, error = await google_drive_service.download_public_file(
@@ -43,14 +43,14 @@ async def _handle_records(records: list[dict]):
             max_bytes=MAX_DRIVE_FILE_BYTES,
         )
         if error == "file_too_large":
-            print("DRIVE_FILE_TOO_LARGE:", url)
+            print("DRIVE_FILE_TOO_LARGE", {"job_id": job_id})
             await _append_status(
                 job_id,
                 DRIVE_FILE_TOO_LARGE_MESSAGE,
             )
             continue
         if not file_bytes or not file_name or not file_id:
-            print("DRIVE_DOWNLOAD_FAILED:", url)
+            print("DRIVE_DOWNLOAD_FAILED", {"job_id": job_id})
             await _append_status(
                 job_id,
                 DRIVE_DOWNLOAD_FAILED_MESSAGE,
@@ -59,7 +59,7 @@ async def _handle_records(records: list[dict]):
 
         drive_info = _extract_drive_file_info(file_name)
         if drive_info is None:
-            print("DRIVE_UNSUPPORTED_FILE:", file_name)
+            print("DRIVE_UNSUPPORTED_FILE", {"job_id": job_id})
             await _append_status(
                 job_id,
                 DRIVE_DOWNLOAD_FAILED_MESSAGE,

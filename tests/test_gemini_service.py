@@ -169,3 +169,19 @@ async def test_refine_text_falls_back_to_response_text_json(monkeypatch):
     assert result.text == "Raw transcript."
     assert result.language == "en"
     assert result.problem_reason == "unclear_transcript"
+
+
+@pytest.mark.anyio
+async def test_refine_text_parse_error_log_does_not_contain_texts(monkeypatch, capsys):
+    gemini_service = _load_gemini_service(
+        monkeypatch,
+        _FakeClient(response=SimpleNamespace(text="private words, not json")),
+    )
+
+    result = await gemini_service.refine_text("raw transcript")
+
+    logged = capsys.readouterr().out
+    assert "GEMINI_REFINE_PARSE_ERROR" in logged
+    assert "private words" not in logged
+    assert "raw transcript" not in logged
+    assert result.text == "raw transcript"

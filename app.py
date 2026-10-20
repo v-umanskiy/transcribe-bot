@@ -24,7 +24,7 @@ async def telegram_webhook(
         raise HTTPException(status_code=401, detail="Bad secret")
 
     data = await request.json()
-    print("Incoming update:", data)
+    print("TELEGRAM_UPDATE_RECEIVED", {"update_id": data.get("update_id") if isinstance(data, dict) else None})
 
     return await webhook_service.handle_telegram_webhook_data(data)
 

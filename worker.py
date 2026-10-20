@@ -10,7 +10,7 @@ from services import transcription_table_service
 
 
 def handler(event, _context):
-    print("SQS_EVENT:", event)
+    print("SQS_EVENT_RECEIVED", {"records": len(event.get("Records") or [])})
 
     asyncio.run(_handle_records(event.get("Records") or []))
     return {"ok": True}
@@ -22,13 +22,13 @@ async def _handle_records(records: list[dict]):
         try:
             payload = json.loads(body)
         except json.JSONDecodeError:
-            print("SQS_BODY_INVALID_JSON:", body)
+            print("SQS_BODY_INVALID_JSON", {"chars": len(body)})
             continue
 
         job_id = payload.get("job_id")
         chunk_index = payload.get("chunk_index")
         if not job_id or chunk_index is None:
-            print("SQS_BODY_MISSING_FIELDS:", payload)
+            print("SQS_BODY_MISSING_FIELDS", {"keys": sorted(payload)})
             continue
 
         chunk = await chunks_table_service.get_chunk(job_id, int(chunk_index))

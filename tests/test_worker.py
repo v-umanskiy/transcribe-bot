@@ -45,6 +45,18 @@ def worker(monkeypatch):
     return importlib.import_module("worker")
 
 
+def test_worker_log_does_not_contain_message_bodies(worker, capsys):
+    event = {"Records": [{"body": "secret, not json"}, {"body": '{"note": "secret value"}'}]}
+
+    worker.handler(event, None)
+
+    logged = capsys.readouterr().out
+    assert "SQS_BODY_INVALID_JSON" in logged
+    assert "SQS_BODY_MISSING_FIELDS" in logged
+    assert "'note'" in logged
+    assert "secret" not in logged
+
+
 @pytest.mark.anyio
 async def test_worker_sends_problem_reason_and_continues_chunk_chain(worker, monkeypatch):
     sent_messages = []
